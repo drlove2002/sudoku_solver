@@ -1,0 +1,7 @@
+[project]
+name = "sudoku"
+version = "0.1.0"
+description = "Research related to sudoku solver"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = []
