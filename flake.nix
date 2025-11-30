@@ -1,104 +1,106 @@
 {
-  description = "Python project with uv2nix - reusable template";
+  description = "Python + Rust project";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
-
-    pyproject-nix.url = "github:pyproject-nix/pyproject.nix";
-    pyproject-nix.inputs.nixpkgs.follows = "nixpkgs";
-
-    uv2nix.url = "github:pyproject-nix/uv2nix";
-    uv2nix.inputs.pyproject-nix.follows = "pyproject-nix";
-    uv2nix.inputs.nixpkgs.follows = "nixpkgs";
-
-    pyproject-build-systems.url = "github:pyproject-nix/build-system-pkgs";
-    pyproject-build-systems.inputs.pyproject-nix.follows = "pyproject-nix";
-    pyproject-build-systems.inputs.nixpkgs.follows = "nixpkgs";
+    rust-overlay = {
+      url = "github:oxalica/rust-overlay";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+    crane = {
+      url = "github:ipetkov/crane";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
-  outputs =
-    {
-      self,
-      nixpkgs,
-      flake-utils,
-      uv2nix,
-      pyproject-nix,
-      pyproject-build-systems,
-    }:
-    flake-utils.lib.eachDefaultSystem (
-      system:
+outputs = inputs:
+    inputs.flake-utils.lib.eachDefaultSystem (system:
       let
-        pkgs = import nixpkgs { inherit system; };
-        python = pkgs.python312;
+        pkgs = import inputs.nixpkgs {
+          inherit system;
+          overlays = [ inputs.rust-overlay.overlays.default ];
+        };
+        lib = pkgs.lib;
 
-        # Parse pyproject.toml at flake eval time
-        pyprojectToml = builtins.fromTOML (builtins.readFile ./pyproject.toml);
+        # Get a custom rust toolchain
+        customRustToolchain = pkgs.rust-bin.stable."1.70.0".default;
+        craneLib =
+          (inputs.crane.mkLib pkgs).overrideToolchain customRustToolchain;
 
-        # Extract metadata automatically
-        projectName = pyprojectToml.project.name;
-        projectVersion = pyprojectToml.project.version;
-        projectDescription = pyprojectToml.project.description;
+        projectName =
+          (craneLib.crateNameFromCargoToml { cargoToml = ./Cargo.toml; }).pname;
+        projectVersion = (craneLib.crateNameFromCargoToml {
+          cargoToml = ./Cargo.toml;
+        }).version;
 
-        # Load workspace from uv.lock + pyproject.toml
-        workspace = uv2nix.lib.workspace.loadWorkspace {
-          workspaceRoot = ./.;
+        pythonVersion = pkgs.python310;
+        wheelTail =
+          "cp310-cp310-manylinux_2_34_x86_64"; # Change if pythonVersion changes
+        wheelName = "${projectName}-${projectVersion}-${wheelTail}.whl";
+
+        crateCfg = {
+          src = craneLib.cleanCargoSource (craneLib.path ./.);
+          nativeBuildInputs = [ pythonVersion ];
         };
 
-        # Create overlay from uv.lock
-        overlay = workspace.mkPyprojectOverlay {
-          sourcePreference = "wheel";
-        };
-
-        # Build Python package set with all overlays
-        pythonSet = pkgs.callPackage pyproject-nix.build.packages {
-          inherit python;
-        };
-
-        # Apply overlays in correct order
-        finalPythonSet = pythonSet.overrideScope (
-          pkgs.lib.composeManyExtensions [
-            pyproject-build-systems.overlays.default
-            overlay
-            (final: prev: {
-
-            })
-          ]
-        );
-
-        # Get your project package
-        projectPackage = finalPythonSet.${projectName};
-
-        # Create virtual environment with dependencies
-        venv = finalPythonSet.mkVirtualEnv "${projectName}-env" workspace.deps.default;
-        venvDev = finalPythonSet.mkVirtualEnv "${projectName}-dev-env" workspace.deps.all;
-
-      in
-      {
-        devShells.default = pkgs.mkShell {
-          packages = [
-            venv
-            pkgs.uv
-            pkgs.ruff
-          ];
-
-          shellHook = ''
-            echo "Entering ${projectName} dev environment"
-            unset PYTHONPATH
-            export UV_PYTHON="${python}/bin/python"
+        # Build the library, then re-use the target dir to generate the wheel file with maturin
+        crateWheel = (craneLib.buildPackage (crateCfg // {
+          pname = projectName;
+          version = projectVersion;
+          # cargoArtifacts = crateArtifacts;
+        })).overrideAttrs (old: {
+          nativeBuildInputs = old.nativeBuildInputs ++ [ pkgs.maturin ];
+          buildPhase = old.buildPhase + ''
+            maturin build --offline --target-dir ./target
           '';
+          installPhase = old.installPhase + ''
+            cp target/wheels/${wheelName} $out/
+          '';
+        });
+      in rec {
+        packages = rec {
+          default = crateWheel; # The wheel itself
+
+          # A python version with the library installed
+          pythonEnv = pythonVersion.withPackages
+            (ps: [ (lib.pythonPackage ps) ] ++ (with ps; [ ipython ]));
         };
 
-        apps.default = {
-          type = "app";
-          program = "${venv}/bin/python";
-          args = [
-            "-m"
-            projectName
-          ];
+        lib = {
+          # To use in other builds with the "withPackages" call
+          pythonPackage = ps:
+            ps.buildPythonPackage rec {
+              pname = projectName;
+              format = "wheel";
+              version = projectVersion;
+              src = "${crateWheel}/${wheelName}";
+              doCheck = false;
+              pythonImportsCheck = [ projectName ];
+            };
         };
 
-        apps.${projectName} = self.apps.${system}.default;
-      }
-    );
+        devShells = rec {
+          rust = pkgs.mkShell {
+            name = "rust-env";
+            src = ./.;
+            nativeBuildInputs = with pkgs; [ pkg-config rust-analyzer maturin ];
+          };
+          python = let
+          in pkgs.mkShell {
+            name = "python-env";
+            src = ./.;
+            nativeBuildInputs = [ packages.pythonEnv ];
+          };
+          default = rust;
+        };
+
+        apps = rec {
+          ipython = {
+            type = "app";
+            program = "${packages.pythonEnv}/bin/ipython";
+          };
+          default = ipython;
+        };
+      });
 }

@@ -1,4 +1,4 @@
-from board import BitBoard
+import sudoku_solver
 
 PROBLEM: list[list[int]] = [
     [7, 4, 5, 0, 0, 9, 0, 0, 0],
@@ -12,13 +12,13 @@ PROBLEM: list[list[int]] = [
     [0, 6, 0, 0, 0, 0, 3, 4, 0],
 ]
 
+grid_size = 9
 
-def main():
-    print("Initializing Sudoku Board...")
-    sudoku = BitBoard(PROBLEM)
-    print("Initial board:")
-    print(sudoku)
+board_list = [n for row in PROBLEM for n in row]
 
+print("Solving the following Sudoku puzzle:")
+solver = sudoku_solver.SudokuSolver(grid_size * grid_size, board_list)
 
-if __name__ == "__main__":
-    main()
+solutions = solver.solve()
+
+print(f"Found {len(solutions)} solution(s).")

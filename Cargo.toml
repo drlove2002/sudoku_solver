@@ -1,0 +1,24 @@
+[package]
+name = "sudoku_solver"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "sudoku_solver"
+
+[dependencies]
+rayon = "1.8"                                      # Lock-free parallelism
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+[dev-dependencies]
+criterion = "0.7" # Benchmarking
+
+[[bench]]
+name = "benchmark"
+harness = false
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
