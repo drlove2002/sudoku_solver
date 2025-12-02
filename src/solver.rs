@@ -158,14 +158,9 @@ impl SudokuSolver {
             }
         }
         box_perm_start_indices[self.board.size] = vertices.len();
-        println!("Total vertices: {}", vertices.len());
 
         // Adjacency list: for each vertex, list of compatible neighbor vertices
         let mut adj: Vec<Vec<usize>> = vec![Vec::new(); vertices.len()];
-
-        // Identify dependent pairs (row-wise and column-wise)
-        // Two boxes are row-dependent if they are in the same box-row
-        // Two boxes are col-dependent if they are in the same box-col
 
         // We can parallelize edge creation
         let edges: Vec<(usize, usize)> = (0..self.board.size)
@@ -204,25 +199,6 @@ impl SudokuSolver {
                             if is_row_dep {
                                 // Check shared rows
                                 for r in 0..n {
-                                    // In box k1, row r corresponds to board row (r1*n + r)
-                                    // In box k2, row r corresponds to board row (r2*n + r)
-                                    // Since r1 == r2, they share the same board rows.
-                                    // We must ensure NO duplicates in the concatenated row.
-                                    // Actually, the paper says: "Check if the shared rows contain identical digit sequences"
-                                    // Wait, standard Sudoku rule: row must contain 1..N exactly once.
-                                    // So if k1 and k2 are in the same row, they must NOT have overlapping values in that row?
-                                    // No, they are disjoint sets of columns.
-                                    // The constraint is that the UNION of all boxes in a row must be a permutation of 1..N.
-                                    // But here we are building pairwise compatibility.
-                                    // Pairwise compatibility means: p1 and p2 don't have conflicting values in the same row?
-                                    // Yes, if p1 has '5' in row r, p2 cannot have '5' in row r.
-
-                                    // Let's check the paper: "Check if the shared rows contain identical digit sequences"
-                                    // That sounds like they are overlapping? No, minigrids are disjoint.
-                                    // Ah, maybe it means "compatible" as in "no conflict".
-                                    // Yes: "An edge ... indicates these two permutations can coexist without violating row or column constraints"
-
-                                    // So for row dependency: check if p1 and p2 have any common digits in the same relative row r.
                                     let mut mask1 = 0u32;
                                     let mut mask2 = 0u32;
                                     for c in 0..n {
@@ -254,8 +230,6 @@ impl SudokuSolver {
 
                             if compatible {
                                 local_edges.push((i, j));
-                                // local_edges.push((j, i)); // Undirected? The paper says directed (i, pi) -> (j, pj). But compatibility is symmetric.
-                                // We'll store as undirected or both ways. Let's store (i, j) where i < j.
                             }
                         });
                     }
@@ -265,7 +239,6 @@ impl SudokuSolver {
             .collect();
 
         println!("Total edges found: {}", edges.len());
-        println!("Compatibility checks completed");
 
         // Populate adjacency list
         for (u, v) in edges {
@@ -273,8 +246,10 @@ impl SudokuSolver {
             adj[v].push(u);
         }
 
-        // Phase 4: Iterative Degree-Based Pruning
-        println!("\n=== PHASE 4: ITERATIVE DEGREE-BASED PRUNING ===");
+        (vertices, adj)
+    }
+
+    fn prune_graph(&self, vertices: &[(usize, usize)], adj: &[Vec<usize>], n: usize) -> Vec<bool> {
         let mut active = vec![true; vertices.len()];
         let mut degrees = vec![0; vertices.len()];
         let mut changed = true;
