@@ -22,12 +22,48 @@ impl SudokuSolver {
         SudokuSolver {
             board,
             permutations: Vec::new(),
+            initial_allowed_masks: Vec::new(),
         }
     }
 
     pub fn solve(&mut self) -> Vec<Vec<u8>> {
         println!("\n=== PHASE 1: PARSING AND MASK INITIALIZATION ===");
-        // Phase 1: Parsing and Mask Initialization
+        let n = self.initialize_masks();
+        println!("✓ Initial allowed masks pre-calculated (optimized)");
+
+        println!("\n=== PHASE 2: MINIGRID PERMUTATION GENERATION ===");
+        self.generate_all_permutations(n);
+
+        // Print permutation counts and details
+        for (k, perms) in self.permutations.iter().enumerate() {
+            println!("\nMinigrid {}: {} permutation(s)", k, perms.len());
+            for (p_idx, perm) in perms.iter().enumerate() {
+                print!("  P{}: [", p_idx);
+                for (i, val) in perm.iter().enumerate() {
+                    print!("{}", val);
+                    if (i + 1) % n == 0 && i < perm.len() - 1 {
+                        print!(" | ");
+                    } else if i < perm.len() - 1 {
+                        print!(" ");
+                    }
+                }
+                println!("]");
+            }
+        }
+
+        println!("\n=== PHASE 3: COMPATIBILITY GRAPH CONSTRUCTION ===");
+        let (vertices, adj) = self.build_compatibility_graph(n);
+        println!("Total vertices: {}", vertices.len());
+        println!("Compatibility checks completed");
+
+        println!("\n=== PHASE 4: ITERATIVE DEGREE-BASED PRUNING ===");
+        let active = self.prune_graph(&vertices, &adj, n);
+
+        println!("\n=== PHASE 5: SOLUTION EXTRACTION ===");
+        self.extract_solution(&vertices, &active, n)
+    }
+
+    fn initialize_masks(&mut self) -> usize {
         let n = (self.board.size as f64).sqrt() as usize;
         if n * n != self.board.size {
             panic!("Board size must be a perfect square");
