@@ -20,13 +20,13 @@ mod test_sudoku {
             [0, 6, 0, 9, 0, 8, 0, 3, 4],
         ];
         let flat_cells: Vec<u8> = cells.iter().flatten().copied().collect();
-        let mut solver = solver::SudokuSolver::new(9, flat_cells);
+        let mut solver = solver::SudokuSolver::new(cells.len(), flat_cells);
         let solution = solver.solve();
 
         // Check if the solution is follow all sudoku rules
         for solution in solution {
             let board = types::Board {
-                size: 9,
+                size: cells.len(),
                 cells: solution,
             };
             assert!(board.is_valid());
