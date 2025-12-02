@@ -305,13 +305,15 @@ impl SudokuSolver {
             }
         }
         println!("Pruning converged after {} iterations", iteration - 1);
+        active
+    }
 
-        // Phase 5: Solution Extraction
-        println!("\n=== PHASE 5: SOLUTION EXTRACTION ===");
-        // For now, let's just return the first valid solution found (if any)
-        // Or return all valid solutions if small enough.
-        // The paper suggests "If S=1: Unique solution".
-
+    fn extract_solution(
+        &self,
+        vertices: &[(usize, usize)],
+        active: &[bool],
+        n: usize,
+    ) -> Vec<Vec<u8>> {
         // Collect remaining valid permutations per box
         let mut valid_perms_per_box = vec![Vec::new(); self.board.size];
         let mut active_count = 0;
@@ -338,17 +340,7 @@ impl SudokuSolver {
             return vec![];
         }
 
-        // If every box has exactly 1, we have a unique solution (assuming graph is connected correctly)
-        // We can try to reconstruct it.
-        // For simplicity, let's just take the first valid permutation for each box and see if it works.
-        // (Real extraction requires backtracking if multiple choices exist)
-
         let mut solutions = Vec::new();
-
-        // Simple backtracking to find ONE solution from the pruned graph
-        // This is a simplified version of "Solution Extraction"
-        // We can implement full enumeration later.
-
         let mut current_solution = vec![vec![]; self.board.size];
         Self::find_solution(
             0,
@@ -402,13 +394,6 @@ impl SudokuSolver {
 
         for perm in &valid_perms[box_idx] {
             // Check compatibility with already placed boxes
-            // (We rely on the graph pruning, but since we are picking one from potentially many,
-            // we technically should check edges. But if pruning worked, maybe we don't need to?
-            // No, pruning just removes locally impossible ones. Global consistency still needs check if multiple choices.)
-            // However, we already built the graph. We should use the graph edges.
-            // But here we don't have easy access to the graph edges in this helper.
-            // Let's just do a quick check against previous boxes.
-
             let mut compatible = true;
             let r1 = box_idx / n;
             let c1 = box_idx % n;
