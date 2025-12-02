@@ -1,18 +1,11 @@
 #![allow(dead_code)]
 use crate::types::Board;
-
-// Context for permutation generation containing box-specific and constraint information
-struct PermutationContext<'a> {
-    box_id: usize,        // Which minigrid (0 to n²-1)
-    n: usize,             // Box dimension (3 for 9x9 Sudoku)
-    size: usize,          // Total board size (9 for 9x9 Sudoku)
-    row_masks: &'a [u32], // Tracks used digits per row (global)
-    col_masks: &'a [u32], // Tracks used digits per column (global)
-}
+use rayon::prelude::*;
 
 pub struct SudokuSolver {
     board: Board,
     pub permutations: Vec<Vec<Vec<u8>>>, // Precomputed permutations per minigrid
+    initial_allowed_masks: Vec<u32>,     // Precomputed allowed masks for each cell
 }
 
 impl SudokuSolver {
@@ -134,54 +127,26 @@ impl SudokuSolver {
                         let idx = (start_r + r) * self.board.size + (start_c + c);
                         let val = self.board.cells[idx];
                         box_cells[r * n + c] = val;
-                        if val != 0 {
-                            used_digits |= 1 << val;
-                        } else {
+                        if val == 0 {
                             empty_indices.push(r * n + c);
                         }
                     }
                 }
 
-                // Recursive backtracking to find all permutations
-                // Pass row/col masks to constrain permutations
-                let ctx = PermutationContext {
-                    box_id: k,
-                    n,
-                    size: self.board.size,
-                    row_masks: &row_masks,
-                    col_masks: &col_masks,
-                };
-                Self::generate_permutations(
-                    &mut box_cells,
+                // Parallel BFS to find all permutations
+                Self::generate_permutations_bfs(
+                    box_cells,
                     &empty_indices,
-                    0,
-                    used_digits,
-                    &mut perms,
-                    &ctx,
-                );
-                perms
+                    initial_allowed_masks,
+                    k,
+                    n,
+                    self.board.size,
+                )
             })
             .collect();
+    }
 
-        // Print permutation counts and details
-        for (k, perms) in self.permutations.iter().enumerate() {
-            println!("\nMinigrid {}: {} permutation(s)", k, perms.len());
-            for (p_idx, perm) in perms.iter().enumerate() {
-                print!("  P{}: [", p_idx);
-                for (i, val) in perm.iter().enumerate() {
-                    print!("{}", val);
-                    if (i + 1) % n == 0 && i < perm.len() - 1 {
-                        print!(" | ");
-                    } else if i < perm.len() - 1 {
-                        print!(" ");
-                    }
-                }
-                println!("]");
-            }
-        }
-
-        // Phase 3: Compatibility Graph Construction
-        println!("\n=== PHASE 3: COMPATIBILITY GRAPH CONSTRUCTION ===");
+    fn build_compatibility_graph(&self, n: usize) -> (Vec<(usize, usize)>, Vec<Vec<usize>>) {
         // Flatten permutations into a list of vertices (box_idx, perm_idx)
         let mut vertices = Vec::new();
         let mut box_perm_start_indices = vec![0; self.board.size + 1];
@@ -535,79 +500,58 @@ impl SudokuSolver {
         }
     }
 
-    fn generate_permutations(
-        box_cells: &mut Vec<u8>,
+    fn generate_permutations_bfs(
+        initial_box_cells: Vec<u8>,
         empty_indices: &[usize],
-        idx: usize,
-        used_digits: u32,
-        results: &mut Vec<Vec<u8>>,
-        ctx: &PermutationContext,
-    ) {
-        if ctx.box_id == 2 {
-            eprintln!(
-                "DEBUG Minigrid 2: idx={}, used_digits={:09b}, box_cells={:?}",
-                idx, used_digits, box_cells
-            );
-            // You can set a debugger breakpoint on this line
+        initial_allowed_masks: &[u32],
+        box_id: usize,
+        n: usize,
+        size: usize,
+    ) -> Vec<Vec<u8>> {
+        // State: (current_cells, used_digits_mask)
+        // We start with one state
+        use rayon::prelude::*;
+        let mut states = vec![(initial_box_cells, 0u32)];
+
+        for &pos in empty_indices {
+            // Calculate global index to get the static allowed mask
+            let box_r = pos / n;
+            let box_c = pos % n;
+            let start_r = (box_id / n) * n;
+            let start_c = (box_id % n) * n;
+            let global_r = start_r + box_r;
+            let global_c = start_c + box_c;
+            let global_idx = global_r * size + global_c;
+
+            let allowed_mask = initial_allowed_masks[global_idx];
+
+            // Expand states in parallel
+            states = states
+                .into_par_iter()
+                .flat_map(|(cells, used)| {
+                    let mut new_states = Vec::new();
+
+                    // Valid digits are those allowed by static constraints AND not used dynamically in this box
+                    let mut candidates = allowed_mask & !used;
+
+                    while candidates != 0 {
+                        let digit_bit = candidates & (!candidates + 1); // Lowest set bit
+                        candidates ^= digit_bit;
+                        let digit = digit_bit.trailing_zeros() as u8;
+
+                        let mut new_cells = cells.clone();
+                        new_cells[pos] = digit;
+                        new_states.push((new_cells, used | digit_bit));
+                    }
+                    new_states
+                })
+                .collect();
+
+            if states.is_empty() {
+                break;
+            }
         }
-        if idx == empty_indices.len() {
-            results.push(box_cells.clone());
-            return;
-        }
 
-        let pos = empty_indices[idx];
-
-        // Calculate the global row and column for this position
-        let box_r = pos / ctx.n; // Local row within the box (0..n-1)
-        let box_c = pos % ctx.n; // Local col within the box (0..n-1)
-        let start_r = (ctx.box_id / ctx.n) * ctx.n; // Starting row of this box
-        let start_c = (ctx.box_id % ctx.n) * ctx.n; // Starting col of this box
-        let global_r = start_r + box_r;
-        let global_c = start_c + box_c;
-
-        for digit in 1..=ctx.size {
-            let mask = 1 << digit;
-            // ✅ OR ADD HERE - fires on each digit attempt for minigrid 2
-            if ctx.box_id == 2 {
-                eprintln!(
-                    "  Trying digit {} at pos {} (global r:{}, c:{})",
-                    digit, pos, global_r, global_c
-                );
-            }
-
-            if (used_digits & mask) != 0 {
-                if ctx.box_id == 2 {
-                    eprintln!("    ✗ Already in box");
-                }
-                continue;
-            }
-            if (ctx.row_masks[global_r] & mask) != 0 {
-                if ctx.box_id == 2 {
-                    eprintln!("    ✗ Already in row {}", global_r);
-                }
-                continue;
-            }
-            if (ctx.col_masks[global_c] & mask) != 0 {
-                if ctx.box_id == 2 {
-                    eprintln!("    ✗ Already in col {}", global_c);
-                }
-                continue;
-            }
-
-            if ctx.box_id == 2 {
-                eprintln!("    ✓ Placed digit {}", digit);
-            }
-
-            box_cells[pos] = digit as u8;
-            Self::generate_permutations(
-                box_cells,
-                empty_indices,
-                idx + 1,
-                used_digits | mask,
-                results,
-                ctx,
-            );
-            box_cells[pos] = 0;
-        }
+        states.into_iter().map(|(cells, _)| cells).collect()
     }
 }
