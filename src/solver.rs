@@ -73,10 +73,11 @@ impl SudokuSolver {
             self.board.size, self.board.size, n, n
         );
 
-        // Initialize masks
-        let mut row_masks = vec![0u32; self.board.size];
-        let mut col_masks = vec![0u32; self.board.size];
-        let mut box_masks = vec![0u32; self.board.size];
+        // Optimized approach: O(N^2)
+        // 1. Calculate used masks for rows, cols, boxes
+        let mut row_used = vec![0u32; self.board.size];
+        let mut col_used = vec![0u32; self.board.size];
+        let mut box_used = vec![0u32; self.board.size];
 
         for i in 0..self.board.size * self.board.size {
             let val = self.board.cells[i];
@@ -84,33 +85,44 @@ impl SudokuSolver {
                 let r = i / self.board.size;
                 let c = i % self.board.size;
                 let b = (r / n) * n + (c / n);
-
                 let mask = 1 << val;
-                if (row_masks[r] & mask) != 0
-                    || (col_masks[c] & mask) != 0
-                    || (box_masks[b] & mask) != 0
+
+                if (row_used[r] & mask) != 0
+                    || (col_used[c] & mask) != 0
+                    || (box_used[b] & mask) != 0
                 {
-                    // Invalid board: duplicate found
                     panic!("Invalid board: duplicate value found");
                 }
 
-                row_masks[r] |= mask;
-                col_masks[c] |= mask;
-                box_masks[b] |= mask;
+                row_used[r] |= mask;
+                col_used[c] |= mask;
+                box_used[b] |= mask;
             }
         }
-        println!("✓ Masks initialized for rows, columns, and boxes");
 
-        // Phase 2: Minigrid Permutation Generation
-        println!("\n=== PHASE 2: MINIGRID PERMUTATION GENERATION ===");
-        use rayon::prelude::*;
+        // 2. Calculate allowed masks for each cell
+        let valid_digits_mask = (1 << (self.board.size + 1)) - 2;
+        self.initial_allowed_masks = vec![0u32; self.board.size * self.board.size];
 
+        for i in 0..self.board.size * self.board.size {
+            if self.board.cells[i] == 0 {
+                let r = i / self.board.size;
+                let c = i % self.board.size;
+                let b = (r / n) * n + (c / n);
+
+                let used = row_used[r] | col_used[c] | box_used[b];
+                self.initial_allowed_masks[i] = (!used) & valid_digits_mask;
+            }
+        }
+        n
+    }
+
+    fn generate_all_permutations(&mut self, n: usize) {
+        let initial_allowed_masks = &self.initial_allowed_masks;
         self.permutations = (0..self.board.size)
             .into_par_iter()
             .map(|k| {
-                let mut perms = Vec::new();
                 let mut box_cells = vec![0u8; self.board.size];
-                let mut used_digits = 0u32;
                 let mut empty_indices = Vec::new();
 
                 // Extract box cells and identify fixed digits
