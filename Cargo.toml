@@ -4,7 +4,12 @@ version = "0.1.0"
 edition = "2024"
 
 [lib]
+name = "solver"
+path = "src/lib.rs"
+
+[[bin]]
 name = "sudoku_solver"
+path = "src/main.rs"
 
 [dependencies]
 rayon = "1.8"                                      # Lock-free parallelism
