@@ -1,17 +1,14 @@
-#![allow(dead_code)]
 use crate::types::Board;
 use rayon::prelude::*;
 
-pub struct SudokuSolver {
-    board: Board,
+pub struct SudokuSolver<const N: usize> {
+    board: Board<N>,
     pub permutations: Vec<Vec<Vec<u8>>>, // Precomputed permutations per minigrid
     initial_allowed_masks: Vec<u32>,     // Precomputed allowed masks for each cell
 }
 
-impl SudokuSolver {
-    pub fn new(size: usize, cells: Vec<u8>) -> Self {
-        let board = Board { size, cells };
-        // TODO: Validate board size (must be n^2)
+impl<const N: usize> SudokuSolver<N> {
+    pub fn new(board: Board<N>) -> Self {
         SudokuSolver {
             board,
             permutations: Vec::new(),
@@ -21,11 +18,11 @@ impl SudokuSolver {
 
     pub fn solve(&mut self) -> Vec<Vec<u8>> {
         println!("\n=== PHASE 1: PARSING AND MASK INITIALIZATION ===");
-        let n = self.initialize_masks();
+        self.initialize_masks();
         println!("✓ Initial allowed masks pre-calculated (optimized)");
 
         println!("\n=== PHASE 2: MINIGRID PERMUTATION GENERATION ===");
-        self.generate_all_permutations(n);
+        self.generate_all_permutations();
 
         // Print permutation counts and details
         for (k, perms) in self.permutations.iter().enumerate() {
@@ -34,7 +31,7 @@ impl SudokuSolver {
                 print!("  P{}: [", p_idx);
                 for (i, val) in perm.iter().enumerate() {
                     print!("{}", val);
-                    if (i + 1) % n == 0 && i < perm.len() - 1 {
+                    if (i + 1) % N == 0 && i < perm.len() - 1 {
                         print!(" | ");
                     } else if i < perm.len() - 1 {
                         print!(" ");
@@ -45,38 +42,33 @@ impl SudokuSolver {
         }
 
         println!("\n=== PHASE 3: COMPATIBILITY GRAPH CONSTRUCTION ===");
-        let (vertices, adj) = self.build_compatibility_graph(n);
+        let (vertices, adj) = self.build_compatibility_graph();
         println!("Total vertices: {}", vertices.len());
         println!("Compatibility checks completed");
 
         println!("\n=== PHASE 4: ITERATIVE DEGREE-BASED PRUNING ===");
-        let active = self.prune_graph(&vertices, &adj, n);
+        let active = self.prune_graph(&vertices, &adj);
 
         println!("\n=== PHASE 5: SOLUTION EXTRACTION ===");
-        self.extract_solution(&vertices, &active, n)
+        self.extract_solution(&vertices, &active)
     }
 
-    fn initialize_masks(&mut self) -> usize {
-        let n = (self.board.size as f64).sqrt() as usize;
-        if n * n != self.board.size {
-            panic!("Board size must be a perfect square");
-        }
-        println!(
-            "Board size: {}x{}, Box size: {}x{}",
-            self.board.size, self.board.size, n, n
-        );
+    fn initialize_masks(&mut self) {
+        let size = self.board.size();
+        let n = self.board.n();
+        println!("Board size: {}x{}, Box size: {}x{}", size, size, n, n);
 
         // Optimized approach: O(N^2)
         // 1. Calculate used masks for rows, cols, boxes
-        let mut row_used = vec![0u32; self.board.size];
-        let mut col_used = vec![0u32; self.board.size];
-        let mut box_used = vec![0u32; self.board.size];
+        let mut row_used = vec![0u32; size];
+        let mut col_used = vec![0u32; size];
+        let mut box_used = vec![0u32; size];
 
-        for i in 0..self.board.size * self.board.size {
-            let val = self.board.cells[i];
+        for i in 0..size * size {
+            let val = self.board.get_cell(i);
             if val != 0 {
-                let r = i / self.board.size;
-                let c = i % self.board.size;
+                let r = i / size;
+                let c = i % size;
                 let b = (r / n) * n + (c / n);
                 let mask = 1 << val;
 
@@ -94,28 +86,29 @@ impl SudokuSolver {
         }
 
         // 2. Calculate allowed masks for each cell
-        let valid_digits_mask = (1 << (self.board.size + 1)) - 2;
-        self.initial_allowed_masks = vec![0u32; self.board.size * self.board.size];
+        let valid_digits_mask = (1 << (size + 1)) - 2;
+        self.initial_allowed_masks = vec![0u32; size * size];
 
-        for i in 0..self.board.size * self.board.size {
-            if self.board.cells[i] == 0 {
-                let r = i / self.board.size;
-                let c = i % self.board.size;
+        for i in 0..size * size {
+            if self.board.get_cell(i) == 0 {
+                let r = i / size;
+                let c = i % size;
                 let b = (r / n) * n + (c / n);
 
                 let used = row_used[r] | col_used[c] | box_used[b];
                 self.initial_allowed_masks[i] = (!used) & valid_digits_mask;
             }
         }
-        n
     }
 
-    fn generate_all_permutations(&mut self, n: usize) {
+    fn generate_all_permutations(&mut self) {
         let initial_allowed_masks = &self.initial_allowed_masks;
-        self.permutations = (0..self.board.size)
+        let size = self.board.size();
+        let n = self.board.n();
+        self.permutations = (0..size)
             .into_par_iter()
             .map(|k| {
-                let mut box_cells = vec![0u8; self.board.size];
+                let mut box_cells = vec![0u8; size];
                 let mut empty_indices = Vec::new();
 
                 // Extract box cells and identify fixed digits
@@ -124,8 +117,8 @@ impl SudokuSolver {
 
                 for r in 0..n {
                     for c in 0..n {
-                        let idx = (start_r + r) * self.board.size + (start_c + c);
-                        let val = self.board.cells[idx];
+                        let idx = (start_r + r) * size + (start_c + c);
+                        let val = self.board.get_cell(idx);
                         box_cells[r * n + c] = val;
                         if val == 0 {
                             empty_indices.push(r * n + c);
@@ -133,23 +126,30 @@ impl SudokuSolver {
                     }
                 }
 
-                // Parallel BFS to find all permutations
-                Self::generate_permutations_bfs(
+                // DFS to find all permutations
+                let mut results = Vec::new();
+                Self::generate_permutations_dfs(
                     box_cells,
                     &empty_indices,
                     initial_allowed_masks,
                     k,
                     n,
-                    self.board.size,
-                )
+                    size,
+                    0,
+                    0,
+                    &mut results,
+                );
+                results
             })
             .collect();
     }
 
-    fn build_compatibility_graph(&self, n: usize) -> (Vec<(usize, usize)>, Vec<Vec<usize>>) {
+    fn build_compatibility_graph(&self) -> (Vec<(usize, usize)>, Vec<Vec<usize>>) {
+        let size = self.board.size();
+        let n = self.board.n();
         // Flatten permutations into a list of vertices (box_idx, perm_idx)
         let mut vertices = Vec::new();
-        let mut box_perm_start_indices = vec![0; self.board.size + 1];
+        let mut box_perm_start_indices = vec![0; size + 1];
 
         for (k, perms) in self.permutations.iter().enumerate() {
             box_perm_start_indices[k] = vertices.len();
@@ -157,20 +157,20 @@ impl SudokuSolver {
                 vertices.push((k, p_idx));
             }
         }
-        box_perm_start_indices[self.board.size] = vertices.len();
+        box_perm_start_indices[size] = vertices.len();
 
         // Adjacency list: for each vertex, list of compatible neighbor vertices
         let mut adj: Vec<Vec<usize>> = vec![Vec::new(); vertices.len()];
 
         // We can parallelize edge creation
-        let edges: Vec<(usize, usize)> = (0..self.board.size)
+        let edges: Vec<(usize, usize)> = (0..size)
             .into_par_iter()
             .flat_map(|k1| {
                 let mut local_edges = Vec::new();
                 let r1 = k1 / n;
                 let c1 = k1 % n;
 
-                for k2 in (k1 + 1)..self.board.size {
+                for k2 in (k1 + 1)..size {
                     let r2 = k2 / n;
                     let c2 = k2 % n;
 
@@ -249,10 +249,11 @@ impl SudokuSolver {
         (vertices, adj)
     }
 
-    fn prune_graph(&self, vertices: &[(usize, usize)], adj: &[Vec<usize>], n: usize) -> Vec<bool> {
+    fn prune_graph(&self, vertices: &[(usize, usize)], adj: &[Vec<usize>]) -> Vec<bool> {
         let mut active = vec![true; vertices.len()];
         let mut degrees = vec![0; vertices.len()];
         let mut changed = true;
+        let n = self.board.n();
 
         // Calculate initial degrees
         for i in 0..vertices.len() {
@@ -308,14 +309,11 @@ impl SudokuSolver {
         active
     }
 
-    fn extract_solution(
-        &self,
-        vertices: &[(usize, usize)],
-        active: &[bool],
-        n: usize,
-    ) -> Vec<Vec<u8>> {
+    fn extract_solution(&self, vertices: &[(usize, usize)], active: &[bool]) -> Vec<Vec<u8>> {
+        let size = self.board.size();
+        let n = self.board.n();
         // Collect remaining valid permutations per box
-        let mut valid_perms_per_box = vec![Vec::new(); self.board.size];
+        let mut valid_perms_per_box = vec![Vec::new(); size];
         let mut active_count = 0;
         for i in 0..vertices.len() {
             if active[i] {
@@ -341,13 +339,13 @@ impl SudokuSolver {
         }
 
         let mut solutions = Vec::new();
-        let mut current_solution = vec![vec![]; self.board.size];
+        let mut current_solution = vec![vec![]; size];
         Self::find_solution(
             0,
             &valid_perms_per_box,
             &mut current_solution,
             &mut solutions,
-            self.board.size,
+            size,
             n,
         );
 
@@ -460,58 +458,55 @@ impl SudokuSolver {
         }
     }
 
-    fn generate_permutations_bfs(
-        initial_box_cells: Vec<u8>,
+    fn generate_permutations_dfs(
+        mut box_cells: Vec<u8>,
         empty_indices: &[usize],
         initial_allowed_masks: &[u32],
         box_id: usize,
         n: usize,
         size: usize,
-    ) -> Vec<Vec<u8>> {
-        // State: (current_cells, used_digits_mask)
-        // We start with one state
-        use rayon::prelude::*;
-        let mut states = vec![(initial_box_cells, 0u32)];
-
-        for &pos in empty_indices {
-            // Calculate global index to get the static allowed mask
-            let box_r = pos / n;
-            let box_c = pos % n;
-            let start_r = (box_id / n) * n;
-            let start_c = (box_id % n) * n;
-            let global_r = start_r + box_r;
-            let global_c = start_c + box_c;
-            let global_idx = global_r * size + global_c;
-
-            let allowed_mask = initial_allowed_masks[global_idx];
-
-            // Expand states in parallel
-            states = states
-                .into_par_iter()
-                .flat_map(|(cells, used)| {
-                    let mut new_states = Vec::new();
-
-                    // Valid digits are those allowed by static constraints AND not used dynamically in this box
-                    let mut candidates = allowed_mask & !used;
-
-                    while candidates != 0 {
-                        let digit_bit = candidates & (!candidates + 1); // Lowest set bit
-                        candidates ^= digit_bit;
-                        let digit = digit_bit.trailing_zeros() as u8;
-
-                        let mut new_cells = cells.clone();
-                        new_cells[pos] = digit;
-                        new_states.push((new_cells, used | digit_bit));
-                    }
-                    new_states
-                })
-                .collect();
-
-            if states.is_empty() {
-                break;
-            }
+        idx: usize,
+        used_mask: u32,
+        results: &mut Vec<Vec<u8>>,
+    ) {
+        if idx == empty_indices.len() {
+            results.push(box_cells);
+            return;
         }
 
-        states.into_iter().map(|(cells, _)| cells).collect()
+        let pos = empty_indices[idx];
+
+        // Calculate global index to get the static allowed mask
+        let box_r = pos / n;
+        let box_c = pos % n;
+        let start_r = (box_id / n) * n;
+        let start_c = (box_id % n) * n;
+        let global_r = start_r + box_r;
+        let global_c = start_c + box_c;
+        let global_idx = global_r * size + global_c;
+
+        let allowed_mask = initial_allowed_masks[global_idx];
+
+        // Valid digits are those allowed by static constraints AND not used dynamically in this box
+        let mut candidates = allowed_mask & !used_mask;
+
+        while candidates != 0 {
+            let digit_bit = candidates & (!candidates + 1); // Lowest set bit
+            candidates ^= digit_bit;
+            let digit = digit_bit.trailing_zeros() as u8;
+
+            box_cells[pos] = digit;
+            Self::generate_permutations_dfs(
+                box_cells.clone(),
+                empty_indices,
+                initial_allowed_masks,
+                box_id,
+                n,
+                size,
+                idx + 1,
+                used_mask | digit_bit,
+                results,
+            );
+        }
     }
 }
