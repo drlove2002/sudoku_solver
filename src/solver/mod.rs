@@ -17,7 +17,7 @@ impl<const N: usize> SudokuSolver<N> {
         SudokuSolver { board }
     }
 
-    pub fn solve(&mut self) -> Vec<Vec<Minigrid<N>>> {
+    pub fn solve(&mut self) -> [Vec<Minigrid<N>>; N] {
         info!("=== PHASE 1: PARSING AND MASK INITIALIZATION ===");
         let masks = self.generate_masks();
         info!("✓ Initial allowed masks pre-calculated (optimized)");
