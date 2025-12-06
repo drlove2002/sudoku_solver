@@ -2,7 +2,23 @@ use log::{debug, info};
 use solver::{SudokuSolver, types};
 
 fn main() {
-    env_logger::init();
+    use simplelog::*;
+    use std::fs::File;
+
+    CombinedLogger::init(vec![
+        TermLogger::new(
+            LevelFilter::Info,
+            Config::default(),
+            TerminalMode::Mixed,
+            ColorChoice::Auto,
+        ),
+        WriteLogger::new(
+            LevelFilter::Trace,
+            Config::default(),
+            File::create("trace.log").unwrap(),
+        ),
+    ])
+    .unwrap();
 
     info!("Starting Sudoku Solver");
 
