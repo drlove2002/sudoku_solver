@@ -1,25 +1,20 @@
-pub mod masks;
 pub mod permutations;
-
-use crate::types::{Board, Minigrid};
+use crate::types::{Board, Permutations, masks::Masks};
 use log::{debug, info};
-use masks::MaskGenerator;
-use permutations::PermutationGenerator;
 
 pub struct SudokuSolver<const N: usize> {
     pub board: Board<N>,
 }
 
 impl<const N: usize> SudokuSolver<N> {
-    const K: usize = Board::<N>::K;
-
     pub fn new(board: Board<N>) -> Self {
         SudokuSolver { board }
     }
 
-    pub fn solve(&mut self) -> [Vec<Minigrid<N>>; N] {
+    pub fn solve(&self) -> [Permutations<N>; N] {
         info!("=== PHASE 1: PARSING AND MASK INITIALIZATION ===");
-        let masks = self.generate_masks();
+        let mut masks = Masks::<N>::default();
+        masks.generate(&self.board);
         info!("✓ Initial allowed masks pre-calculated (optimized)");
 
         info!("=== PHASE 2: MINIGRID PERMUTATION GENERATION ===");
@@ -29,7 +24,7 @@ impl<const N: usize> SudokuSolver<N> {
         for (idx, perms) in permutations.iter().enumerate() {
             debug!("Minigrid {}: {} permutation(s)", idx, perms.len());
             for (p_idx, perm) in perms.iter().enumerate() {
-                debug!("  P{}: {}", p_idx, perm);
+                debug!("  M-{}-{}: {}", perm.id, p_idx, perm);
             }
         }
         permutations

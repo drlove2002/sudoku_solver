@@ -1,28 +1,11 @@
 use log::{debug, info};
-use solver::{SudokuSolver, types};
+use solver::{SudokuSolver, init_logger, types};
 
 fn main() {
-    use simplelog::*;
-    use std::fs::File;
-
-    CombinedLogger::init(vec![
-        TermLogger::new(
-            LevelFilter::Info,
-            Config::default(),
-            TerminalMode::Mixed,
-            ColorChoice::Auto,
-        ),
-        WriteLogger::new(
-            LevelFilter::Trace,
-            Config::default(),
-            File::create("trace.log").unwrap(),
-        ),
-    ])
-    .unwrap();
-
+    init_logger();
     info!("Starting Sudoku Solver");
 
-    let content = std::fs::read_to_string("input.txt").expect("Failed to read input.txt");
+    let content = std::fs::read_to_string("dataset/input.txt").expect("Failed to read input.txt");
     info!("Read input file successfully");
 
     let mut cells = [[0u8; 9]; 9];
@@ -40,7 +23,7 @@ fn main() {
     info!("Board created successfully");
     debug!("Board state:\n{}", board);
 
-    let mut solver = SudokuSolver::<9>::new(board);
+    let solver = SudokuSolver::<9>::new(board);
     info!("Solver initialized");
 
     let solution = solver.solve();
@@ -48,6 +31,6 @@ fn main() {
 
     // Print number of permutations generated for each minigrid
     for (i, perms) in solution.iter().enumerate() {
-        println!("Minigrid {}: {} permutations", i, perms.len());
+        println!("Minigrid {}: {} permutations", i + 1, perms.len());
     }
 }

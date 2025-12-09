@@ -122,3 +122,4 @@ dmypy.json
 
 /target
 trace.log
+/perf

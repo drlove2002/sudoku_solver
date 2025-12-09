@@ -4,30 +4,31 @@ use std::fmt;
 #[derive(Debug, Clone, Copy)]
 pub struct Minigrid<const N: usize> {
     pub id: usize,
-    pub cells: [u8; N], // Flattened KxK = N
-    pub zero_count: usize,
+    pub cells: [u8; N],  // Flattened KxK = N
+    pub empty_mask: u32, // Bitmask of empty cells
 }
 
 impl<const N: usize> Minigrid<N> {
+    pub const K: usize = N.isqrt();
+
     pub fn new(id: usize, board: &Board<N>) -> Self {
-        let k = Board::<N>::K;
         let mut cells = [0u8; N];
-        let start_row = (id / k) * k;
-        let start_col = (id % k) * k;
-        let mut zero_count = 0;
-        for i in 0..k {
-            for j in 0..k {
+        let start_row = (id / Self::K) * Self::K;
+        let start_col = (id % Self::K) * Self::K;
+        let mut empty_mask = 0u32;
+        for i in 0..Self::K {
+            for j in 0..Self::K {
+                let idx = i * Self::K + j;
                 let val = board.cells[start_row + i][start_col + j];
-                cells[i * k + j] = val;
-                if val == 0 {
-                    zero_count += 1;
-                }
+                cells[idx] = val;
+                // Update empty_mask oneliner
+                empty_mask |= ((val == 0) as u32) << idx;
             }
         }
         Self {
             id,
             cells,
-            zero_count,
+            empty_mask,
         }
     }
 }

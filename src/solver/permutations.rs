@@ -1,98 +1,144 @@
-use crate::types::{Minigrid, Permutations};
+#![allow(dead_code)]
+use crate::{
+    helper::BitMask,
+    types::{Minigrid, Permutations, masks::Masks},
+};
+use log::{debug, trace};
 use rayon::prelude::*;
 
-pub trait PermutationGenerator<const N: usize> {
-    fn generate_all_permutations(&self, conflict_masks: &[[u32; N]; N]) -> [Permutations<N>; N];
+impl<const N: usize> Minigrid<N> {
+    // Select the empty cell with the fewest candidates (MRV heuristic)
+    // Returns Some(index) of the best cell, or None if no empty cells are found
+    // MRV: Minimum Remaining Values
+    #[inline(always)]
+    fn find_best_cell(&self, used_mask: u32, masks: &Masks<N>) -> Option<usize> {
+        let start_row = (self.id / Self::K) * Self::K;
+        let start_col = (self.id % Self::K) * Self::K;
+
+        let mut best_idx = None;
+        let mut min_candidates = N + 1;
+
+        let mut check_mask = self.empty_mask;
+        while check_mask != 0 {
+            let idx = check_mask.trailing_zeros() as usize;
+            check_mask &= check_mask - 1; // Brian Kernighan's trick: remove lowest set bit
+            if self.cells[idx] != 0 {
+                continue;
+            }
+
+            let global_row = start_row + (idx / Self::K);
+            let global_col = start_col + (idx % Self::K);
+            let forbidden = masks.rows[global_row] | masks.cols[global_col] | used_mask;
+            if forbidden == BitMask::<N>::all_set() {
+                trace!(
+                    "  Cell[{}] impossible at ({},{})",
+                    idx, global_row, global_col
+                );
+                return None;
+            }
+
+            // Count remaining candidates for this cell
+            let num_candidates = BitMask::<N>::candidates_count(forbidden);
+            if num_candidates < min_candidates {
+                // Less candidates found, update best choice
+                min_candidates = num_candidates;
+                best_idx = Some(idx);
+                trace!(
+                    "  Cell[{}] has {} candidates (MRV) mask {:032b}",
+                    idx, num_candidates, forbidden
+                );
+                if num_candidates == 1 {
+                    break;
+                }
+            }
+        }
+
+        debug!(
+            "find_best_cell(mg={}, mask={:032b}): {:?}",
+            self.id, used_mask, best_idx
+        );
+        best_idx
+    }
+
     fn generate_permutations_dfs(
-        mg: Minigrid<N>,
-        empty_indices: &[(usize, usize)],
-        idx: usize,
-        used_in_box: u32,
-        conflict_masks: &[[u32; N]; N],
-        results: &mut Permutations<N>,
-    );
+        &mut self,
+        used_mask: u32,
+        masks: &Masks<N>,
+        results: &mut Vec<Minigrid<N>>,
+    ) {
+        if let Some(current_idx) = self.find_best_cell(used_mask, masks) {
+            let start_row = (self.id / Self::K) * Self::K;
+            let global_row = start_row + (current_idx / Self::K);
+            let global_col = (self.id % Self::K) * Self::K + (current_idx % Self::K);
+            let forbidden = masks.rows[global_row] | masks.cols[global_col] | used_mask;
+
+            trace!(
+                "DFS depth: mg={}, pos({},{}), mask={:032b}",
+                self.id, global_row, global_col, used_mask
+            );
+
+            for num in 1..=N as u8 {
+                let bit = BitMask::<N>::get(num);
+
+                // Check if num can be placed
+                if (forbidden & bit) == 0 {
+                    trace!("  Try num={}", num);
+                    self.cells[current_idx] = num;
+                    self.generate_permutations_dfs(used_mask | bit, masks, results);
+                    self.cells[current_idx] = 0; // Backtrack
+                }
+            }
+        } else if BitMask::<N>::is_all_set(used_mask) {
+            trace!("✓ Solution found for mg={}", self.id);
+            results.push(*self);
+        } else {
+            trace!("✗ Dead end at mg={}, mask={:032b}", self.id, used_mask);
+        }
+    }
 }
 
-impl<const N: usize> PermutationGenerator<N> for super::SudokuSolver<N> {
-    fn generate_all_permutations(&self, conflict_masks: &[[u32; N]; N]) -> [Permutations<N>; N] {
+impl<const N: usize> super::SudokuSolver<N> {
+    pub fn generate_all_permutations(&self, masks: &Masks<N>) -> [Permutations<N>; N] {
+        debug!(
+            "Starting parallel permutation generation for {} minigrid(s)",
+            N
+        );
+
         (0..N)
             .into_par_iter()
             .map(|id| {
-                let mg = Minigrid::new(id, &self.board);
+                let mut mg = Minigrid::new(id, &self.board);
                 let mut results = Vec::new();
 
-                // Prepare for DFS
-                let mut empty_indices = Vec::new();
-                let mut used_in_box = 0u32;
-
-                for r in 0..Self::K {
-                    for c in 0..Self::K {
-                        let val = mg.cells[r * Self::K + c];
-                        if val == 0 {
-                            empty_indices.push((r, c));
-                        } else {
-                            used_in_box |= 1 << (val - 1);
-                        }
-                    }
-                }
-
-                Self::generate_permutations_dfs(
-                    mg,
-                    &empty_indices,
-                    0,
-                    used_in_box,
-                    conflict_masks,
-                    &mut results,
+                // Used mask tracks numbers already present in the minigrid
+                let used_mask = masks.boxs[id];
+                debug!(
+                    "Generating permutations for Minigrid {} (initial_mask={:032b})",
+                    id, used_mask
                 );
+                mg.generate_permutations_dfs(used_mask, masks, &mut results);
+                debug!("Minigrid {} completed: {} solutions", id, results.len());
+
                 results
             })
             .collect::<Vec<_>>()
             .try_into()
-            .expect("Failed to generate permutations for all minigrids")
-    }
+            .unwrap()
 
-    fn generate_permutations_dfs(
-        mut mg: Minigrid<N>,
-        empty_indices: &[(usize, usize)],
-        idx: usize,
-        used_in_box: u32,
-        conflict_masks: &[[u32; N]; N],
-        results: &mut Permutations<N>,
-    ) {
-        if idx == empty_indices.len() {
-            results.push(mg);
-            return;
-        }
+        // let id = 2; // Temporarily using single-threaded for easier debugging
+        // let mut mg = Minigrid::new(id, &self.board);
+        // let mut results = Vec::new();
 
-        let (r, c) = empty_indices[idx];
-
-        // Calculate global coordinates
-        let start_row = (mg.id / Self::K) * Self::K;
-        let start_col = (mg.id % Self::K) * Self::K;
-        let global_r = start_row + r;
-        let global_c = start_col + c;
-
-        let conflict_mask = conflict_masks[global_r][global_c];
-
-        // Candidates are allowed by board constraints AND not used in this box
-        // conflict_mask contains 'used' bits. used_in_box contains 'used' bits.
-        // We want bits that are NOT used in either, and are within valid range (1..N).
-        let mut candidates = !(conflict_mask | used_in_box) & ((1 << N) - 1);
-
-        while candidates != 0 {
-            let digit_bit = candidates & (!candidates + 1); // Lowest set bit
-            candidates ^= digit_bit; // Remove it
-            let digit = digit_bit.trailing_zeros() as u8 + 1;
-
-            mg.cells[r * Self::K + c] = digit;
-            Self::generate_permutations_dfs(
-                mg,
-                empty_indices,
-                idx + 1,
-                used_in_box | digit_bit,
-                conflict_masks,
-                results,
-            );
-        }
+        // // Used mask tracks numbers already present in the minigrid
+        // let used_mask = masks.boxs[id];
+        // debug!(
+        //     "Generating permutations for Minigrid {} (initial_mask={:032b})",
+        //     id, used_mask
+        // );
+        // mg.generate_permutations_dfs(used_mask, masks, &mut results);
+        // debug!("Minigrid {} completed: {} solutions", id, results.len());
+        // let mut all_permutations: [Permutations<N>; N] = [(); N].map(|_| Vec::new());
+        // all_permutations[id] = results;
+        // all_permutations
     }
 }
