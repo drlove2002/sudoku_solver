@@ -15,6 +15,11 @@ impl<const N: usize> Board<N> {
         Self { cells }
     }
 
+    #[inline]
+    pub fn box_idx(r: usize, c: usize) -> usize {
+        (r / Self::K) * Self::K + (c / Self::K)
+    }
+
     pub fn is_valid(&self) -> bool {
         trace!("Checking board validity");
         let k = Self::K;
