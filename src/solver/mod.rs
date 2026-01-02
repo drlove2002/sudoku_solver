@@ -33,6 +33,9 @@ impl<const N: usize, const K: usize> SudokuSolver<N, K> {
             }
         }
 
-        let _graph = Graph::new(permutations);
+        let mut graph = Graph::new(permutations);
+        graph.create_edges();
+        graph.export_to_json("./dataset/graph_data.json");
+        // TODO Prune edges recursively
     }
 }

@@ -123,3 +123,4 @@ dmypy.json
 /target
 trace.log
 /perf
+/dataset/graph_data.json

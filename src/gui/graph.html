@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sudoku Permutation Graph Visualizer</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #1a1a2e;
+            color: #eee;
+        }
+
+        #container {
+            display: flex;
+            gap: 20px;
+        }
+
+        #controls {
+            background: #16213e;
+            padding: 20px;
+            border-radius: 8px;
+            min-width: 250px;
+            max-width: 300px;
+        }
+
+        h1 {
+            margin: 0 0 10px 0;
+            font-size: 24px;
+        }
+
+        #graph {
+            flex: 1;
+            background: #0f3460;
+            border-radius: 8px;
+            position: relative;
+        }
+
+        .node {
+            stroke: #fff;
+            stroke-width: 2px;
+            cursor: pointer;
+            transition: r 0.2s;
+        }
+
+        .node:hover {
+            stroke-width: 3px;
+        }
+
+        .node.highlighted {
+            stroke: #ffd700;
+            stroke-width: 4px;
+        }
+
+        .node.faded {
+            opacity: 0.2;
+        }
+
+        .link {
+            stroke: #999;
+            stroke-opacity: 0.3;
+            stroke-width: 1px;
+        }
+
+        .link.highlighted {
+            stroke: #ffd700;
+            stroke-opacity: 0.8;
+            stroke-width: 2px;
+        }
+
+        .link.faded {
+            opacity: 0.1;
+        }
+
+        #tooltip {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.9);
+            color: #fff;
+            padding: 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            pointer-events: none;
+            display: none;
+            z-index: 1000;
+            border: 1px solid #ffd700;
+            max-width: 300px;
+        }
+
+        .tooltip-header {
+            font-weight: bold;
+            margin-bottom: 8px;
+            color: #ffd700;
+            font-size: 14px;
+        }
+
+        .cell-grid {
+            display: inline-grid;
+            gap: 2px;
+            margin: 8px 0;
+        }
+
+        .cell {
+            background: #16213e;
+            padding: 4px 8px;
+            text-align: center;
+            border-radius: 3px;
+            font-family: monospace;
+        }
+
+        .stats {
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid #444;
+            font-size: 12px;
+        }
+
+        #legend {
+            margin-top: 20px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 8px 0;
+            font-size: 13px;
+        }
+
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            margin-right: 10px;
+            border: 2px solid #fff;
+        }
+
+        #file-input {
+            margin: 15px 0;
+            padding: 10px;
+            background: #0f3460;
+            border: 2px dashed #53a8b6;
+            border-radius: 6px;
+            cursor: pointer;
+            text-align: center;
+        }
+
+        #file-input:hover {
+            background: #16213e;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .file-label {
+            cursor: pointer;
+            color: #53a8b6;
+        }
+
+        #stats-panel {
+            margin-top: 20px;
+            padding: 15px;
+            background: #0f3460;
+            border-radius: 6px;
+        }
+
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 5px 0;
+            font-size: 13px;
+        }
+
+        .stat-label {
+            color: #53a8b6;
+        }
+
+        button {
+            background: #53a8b6;
+            color: #fff;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-top: 10px;
+            width: 100%;
+        }
+
+        button:hover {
+            background: #4a96a3;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="container">
+        <div id="controls">
+            <h1>Sudoku Graph</h1>
+
+            <div id="file-input">
+                <label for="json-file" class="file-label">
+                    📁 Load Graph JSON
+                </label>
+                <input type="file" id="json-file" accept=".json">
+            </div>
+
+            <div id="stats-panel">
+                <div class="stat-row">
+                    <span class="stat-label">Nodes:</span>
+                    <span id="node-count">0</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Edges:</span>
+                    <span id="edge-count">0</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Minigrids:</span>
+                    <span id="minigrid-count">0</span>
+                </div>
+            </div>
+
+            <button id="reset-btn">Reset View</button>
+
+            <div id="legend"></div>
+        </div>
+
+        <div id="graph">
+            <svg id="svg"></svg>
+            <div id="tooltip"></div>
+        </div>
+    </div>
+
+    <script>
+        const width = window.innerWidth - 350;
+        const height = window.innerHeight - 40;
+
+        const svg = d3.select('#svg')
+            .attr('width', width)
+            .attr('height', height);
+
+        const g = svg.append('g');
+
+        // Color scale for minigrids
+        const colors = d3.scaleOrdinal(d3.schemeCategory10);
+
+        let simulation;
+        let graphData = null;
+        let selectedNode = null;
+
+        // Zoom behavior
+        const zoom = d3.zoom()
+            .scaleExtent([0.1, 4])
+            .on('zoom', (event) => {
+                g.attr('transform', event.transform);
+            });
+
+        svg.call(zoom);
+
+        // File input handler
+        document.getElementById('json-file').addEventListener('change', function (e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function (e) {
+                    try {
+                        graphData = JSON.parse(e.target.result);
+                        visualizeGraph(graphData);
+                    } catch (err) {
+                        alert('Error parsing JSON: ' + err.message);
+                    }
+                };
+                reader.readAsText(file);
+            }
+        });
+
+        // Reset button
+        document.getElementById('reset-btn').addEventListener('click', () => {
+            if (graphData) {
+                clearHighlight();
+                svg.transition().duration(750).call(
+                    zoom.transform,
+                    d3.zoomIdentity
+                );
+            }
+        });
+
+        function visualizeGraph(data) {
+            // Clear previous graph
+            g.selectAll('*').remove();
+
+            // Update stats
+            document.getElementById('node-count').textContent = data.nodes.length;
+            document.getElementById('edge-count').textContent = data.edges.length;
+            const minigridCount = new Set(data.nodes.map(n => n.minigrid)).size;
+            document.getElementById('minigrid-count').textContent = minigridCount;
+
+            // Create legend
+            updateLegend(data);
+
+            // Create force simulation
+            simulation = d3.forceSimulation(data.nodes)
+                .force('link', d3.forceLink(data.edges)
+                    .id(d => d.id)
+                    .distance(100))
+                .force('charge', d3.forceManyBody()
+                    .strength(-500))
+                .force('center', d3.forceCenter(width / 2, height / 2))
+                .force('collision', d3.forceCollide().radius(15))
+                .force('x', d3.forceX(d => {
+                    // Group by minigrid column
+                    const col = d.minigrid % Math.sqrt(minigridCount);
+                    return (col + 1) * width / (Math.sqrt(minigridCount) + 1);
+                }).strength(0.1))
+                .force('y', d3.forceY(d => {
+                    // Group by minigrid row
+                    const row = Math.floor(d.minigrid / Math.sqrt(minigridCount));
+                    return (row + 1) * height / (Math.sqrt(minigridCount) + 1);
+                }).strength(0.3));
+
+            // Create links
+            const link = g.append('g')
+                .selectAll('line')
+                .data(data.edges)
+                .join('line')
+                .attr('class', 'link');
+
+            const node = g.append('g')
+                .selectAll('g.node')
+                .data(data.nodes)
+                .join('g')
+                .attr('class', 'node')
+                .call(drag(simulation))
+                .on('click', handleNodeClick)
+                .on('mouseover', handleMouseOver)
+                .on('mouseout', handleMouseOut);
+
+            // circle
+            node.append('circle')
+                .attr('r', 20)
+                .attr('fill', d => colors(d.minigrid))
+                .attr('stroke', '#fff')
+                .attr('stroke-width', 2);
+
+            node.append('text')
+                .attr('text-anchor', 'middle')
+                .attr('dy', 4)
+                .attr('font-size', '13px')
+                .attr('font-weight', '600')
+                .style('pointer-events', 'none')
+                .style('paint-order', 'stroke')
+                .style('stroke', 'rgba(0,0,0,0.45)')
+                .style('stroke-width', 2.5)
+                .text(d => `m${d.minigrid}p${d.perm_id}`)
+                .attr('fill', "#fff");
+
+            // Update positions on tick
+            simulation.on('tick', () => {
+                link
+                    .attr('x1', d => d.source.x)
+                    .attr('y1', d => d.source.y)
+                    .attr('x2', d => d.target.x)
+                    .attr('y2', d => d.target.y);
+
+                node
+                    .attr('transform', d => `translate(${d.x},${d.y})`);
+
+            });
+        }
+
+        function updateLegend(data) {
+            const legend = document.getElementById('legend');
+            legend.innerHTML = '<h3 style="margin-bottom: 10px;">Minigrids</h3>';
+
+            const minigrids = [...new Set(data.nodes.map(n => n.minigrid))].sort((a, b) => a - b);
+
+            minigrids.forEach(mg => {
+                const item = document.createElement('div');
+                item.className = 'legend-item';
+
+                const colorBox = document.createElement('div');
+                colorBox.className = 'legend-color';
+                colorBox.style.backgroundColor = colors(mg);
+
+                const label = document.createElement('span');
+                const node = data.nodes.find(n => n.minigrid === mg);
+                label.textContent = `MG ${mg} (${node.board_position})`;
+
+                item.appendChild(colorBox);
+                item.appendChild(label);
+                legend.appendChild(item);
+            });
+        }
+
+        function handleNodeClick(event, d) {
+            event.stopPropagation();
+
+            if (selectedNode === d) {
+                clearHighlight();
+                return;
+            }
+
+            selectedNode = d;
+
+            // Get connected node IDs
+            const connectedIds = new Set();
+            graphData.edges.forEach(edge => {
+                if (edge.source.id === d.id) connectedIds.add(edge.target.id);
+                if (edge.target.id === d.id) connectedIds.add(edge.source.id);
+            });
+
+            // Highlight nodes
+            g.selectAll('.node')
+                .classed('highlighted', n => n.id === d.id)
+                .classed('faded', n => n.id !== d.id && !connectedIds.has(n.id));
+
+            // Highlight links
+            g.selectAll('.link')
+                .classed('highlighted', e =>
+                    (e.source.id === d.id || e.target.id === d.id))
+                .classed('faded', e =>
+                    e.source.id !== d.id && e.target.id !== d.id);
+        }
+
+        function clearHighlight() {
+            selectedNode = null;
+            g.selectAll('.node')
+                .classed('highlighted', false)
+                .classed('faded', false);
+            g.selectAll('.link')
+                .classed('highlighted', false)
+                .classed('faded', false);
+        }
+        function positionTooltipWithinGraph(event, tooltip) {
+            const graphEl = document.getElementById('graph');
+            const graphRect = graphEl.getBoundingClientRect();
+
+            // using clientX/Y -> relative to viewport, subtract graph's top-left
+            let x = event.clientX - graphRect.left + 20; // px inside graph
+            let y = event.clientY - graphRect.top + 20;
+
+            // measure tooltip size AFTER it's visible
+            const ttRect = tooltip.getBoundingClientRect();
+            const padding = 8;
+
+            // clamp horizontally to graph inner width
+            const maxX = graphRect.width - ttRect.width - padding;
+            if (x > maxX) x = Math.max(padding, maxX);
+            if (x < padding) x = padding;
+
+            // clamp vertically to graph inner height
+            const maxY = graphRect.height - ttRect.height - padding;
+            if (y > maxY) y = Math.max(padding, maxY);
+            if (y < padding) y = padding;
+
+            tooltip.style.left = `${x}px`;
+            tooltip.style.top = `${y}px`;
+        }
+
+        function handleMouseOver(event, d) {
+            const tooltip = document.getElementById('tooltip');
+            const K = Math.sqrt(d.cells.length);
+
+            let cellsHtml = `<div class="cell-grid" style="grid-template-columns: repeat(${K}, 1fr);">`;
+            d.cells.forEach(cell => {
+                cellsHtml += `<div class="cell">${cell}</div>`;
+            });
+            cellsHtml += '</div>';
+
+            const connections = graphData.edges.filter(e =>
+                e.source.id === d.id || e.target.id === d.id
+            ).length;
+
+            tooltip.innerHTML = `
+                <div class="tooltip-header">Minigrid ${d.minigrid} - Permutation ${d.perm_id}</div>
+                <div><strong>Position:</strong> ${d.board_position}</div>
+                ${cellsHtml}
+                <div class="stats">
+                    <div><strong>Node ID:</strong> ${d.id}</div>
+                    <div><strong>Connections:</strong> ${connections}</div>
+                </div>
+            `;
+
+            // make visible so we can measure it, then position relative to #graph
+            tooltip.style.display = 'block';
+
+            // position immediately and then follow mouse while inside node
+            positionTooltipWithinGraph(event, tooltip);
+
+            // add a namespaced mousemove listener on svg so moving the mouse keeps tooltip clamped
+            // (use svg node from d3 selection)
+            d3.select('#svg').on('mousemove.tooltip', (ev) => {
+                positionTooltipWithinGraph(ev, tooltip);
+            });
+        }
+
+
+        function handleMouseOut() {
+            const tooltip = document.getElementById('tooltip');
+            tooltip.style.display = 'none';
+            // remove the namespaced mousemove
+            d3.select('#svg').on('mousemove.tooltip', null);
+        }
+
+        function drag(simulation) {
+            function dragstarted(event) {
+                if (!event.active) simulation.alphaTarget(0.3).restart();
+                event.subject.fx = event.subject.x;
+                event.subject.fy = event.subject.y;
+            }
+
+            function dragged(event) {
+                event.subject.fx = event.x;
+                event.subject.fy = event.y;
+            }
+
+            function dragended(event) {
+                if (!event.active) simulation.alphaTarget(0);
+                event.subject.fx = null;
+                event.subject.fy = null;
+            }
+
+            return d3.drag()
+                .on('start', dragstarted)
+                .on('drag', dragged)
+                .on('end', dragended);
+        }
+
+        // Click on background to clear highlight
+        svg.on('click', clearHighlight);
+    </script>
+</body>
+
+</html>

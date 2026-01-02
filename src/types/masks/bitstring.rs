@@ -1,6 +1,6 @@
 use std::{
     fmt,
-    ops::{BitOr, BitOrAssign},
+    ops::{BitAnd, BitOr, BitOrAssign},
 };
 
 #[derive(Debug, Default, Copy, Clone, PartialEq, Eq)]
@@ -57,6 +57,14 @@ impl<const N: usize> BitOr for BitString<N> {
         }
     }
 }
+impl<const N: usize> BitAnd for BitString<N> {
+    type Output = Self;
+    fn bitand(self, rhs: Self) -> Self::Output {
+        BitString {
+            bits: self.bits & rhs.bits,
+        }
+    }
+}
 
 impl<const N: usize> BitOrAssign for BitString<N> {
     fn bitor_assign(&mut self, rhs: Self) {
@@ -65,27 +73,12 @@ impl<const N: usize> BitOrAssign for BitString<N> {
 }
 
 pub type EmptyMask<const N: usize> = BitString<N>;
-pub type DirtyMask<const N: usize> = BitString<N>;
-
 impl<const N: usize> EmptyMask<N> {
     #[inline(always)]
     pub fn set_value(&mut self, idx: usize, value: u8) {
         self.bits |= ((value == 0) as u32) << idx;
     }
 }
-
-impl<const N: usize> DirtyMask<N> {
-    #[inline(always)]
-    pub fn is_dirty(&self, num: usize) -> bool {
-        self.is_set(num - 1)
-    }
-
-    #[inline(always)]
-    pub fn dirty_set(&mut self, num: usize) -> &Self {
-        self.set(num - 1)
-    }
-}
-
 /// Iterator using Kernighan's trick
 impl<const N: usize> Iterator for EmptyMask<N> {
     type Item = usize;
@@ -98,5 +91,23 @@ impl<const N: usize> Iterator for EmptyMask<N> {
             self.bits &= self.bits - 1; // Brian Kernighan's trick
             Some(idx)
         }
+    }
+}
+
+pub type DirtyMask<const N: usize> = BitString<N>;
+impl<const N: usize> DirtyMask<N> {
+    #[inline(always)]
+    pub fn is_dirty(&self, num: usize) -> bool {
+        self.is_set(num - 1)
+    }
+
+    #[inline(always)]
+    pub fn dirty_set(&mut self, num: usize) -> &Self {
+        self.set(num - 1)
+    }
+
+    #[inline(always)]
+    pub fn is_conflicting(&self, rhs: &Self) -> bool {
+        self.bits & rhs.bits != 0
     }
 }
