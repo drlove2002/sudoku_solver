@@ -1,398 +1,792 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sudoku Permutation Graph Visualizer</title>
+    <title>Sudoku Hierarchical Graph</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
     <style>
-        body {
+        * {
             margin: 0;
-            padding: 20px;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: #1a1a2e;
-            color: #eee;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', 'Droid Sans Mono', 'Source Code Pro', monospace;
+            background: #0a0e27;
+            color: #e8e8e8;
+            overflow: hidden;
         }
 
         #container {
             display: flex;
-            gap: 20px;
+            height: 100vh;
+            gap: 0;
+        }
+
+        #sidebar {
+            width: 320px;
+            background: linear-gradient(180deg, #0f1423 0%, #1a1f38 100%);
+            border-right: 1px solid #1e2642;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 4px 0 24px rgba(0, 0, 0, 0.5);
+        }
+
+        #header {
+            padding: 24px;
+            border-bottom: 1px solid #1e2642;
+        }
+
+        #header h1 {
+            font-size: 20px;
+            font-weight: 600;
+            letter-spacing: -0.5px;
+            margin-bottom: 8px;
+            background: linear-gradient(135deg, #60a5fa 0%, #a78bfa 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        #header .subtitle {
+            font-size: 12px;
+            color: #6b7280;
+            letter-spacing: 0.5px;
         }
 
         #controls {
-            background: #16213e;
             padding: 20px;
-            border-radius: 8px;
-            min-width: 250px;
-            max-width: 300px;
-        }
-
-        h1 {
-            margin: 0 0 10px 0;
-            font-size: 24px;
-        }
-
-        #graph {
             flex: 1;
-            background: #0f3460;
-            border-radius: 8px;
-            position: relative;
-        }
-
-        .node {
-            stroke: #fff;
-            stroke-width: 2px;
-            cursor: pointer;
-            transition: r 0.2s;
-        }
-
-        .node:hover {
-            stroke-width: 3px;
-        }
-
-        .node.highlighted {
-            stroke: #ffd700;
-            stroke-width: 4px;
-        }
-
-        .node.faded {
-            opacity: 0.2;
-        }
-
-        .link {
-            stroke: #999;
-            stroke-opacity: 0.3;
-            stroke-width: 1px;
-        }
-
-        .link.highlighted {
-            stroke: #ffd700;
-            stroke-opacity: 0.8;
-            stroke-width: 2px;
-        }
-
-        .link.faded {
-            opacity: 0.1;
-        }
-
-        #tooltip {
-            position: absolute;
-            background: rgba(0, 0, 0, 0.9);
-            color: #fff;
-            padding: 12px;
-            border-radius: 6px;
-            font-size: 13px;
-            pointer-events: none;
-            display: none;
-            z-index: 1000;
-            border: 1px solid #ffd700;
-            max-width: 300px;
-        }
-
-        .tooltip-header {
-            font-weight: bold;
-            margin-bottom: 8px;
-            color: #ffd700;
-            font-size: 14px;
-        }
-
-        .cell-grid {
-            display: inline-grid;
-            gap: 2px;
-            margin: 8px 0;
-        }
-
-        .cell {
-            background: #16213e;
-            padding: 4px 8px;
-            text-align: center;
-            border-radius: 3px;
-            font-family: monospace;
-        }
-
-        .stats {
-            margin-top: 8px;
-            padding-top: 8px;
-            border-top: 1px solid #444;
-            font-size: 12px;
-        }
-
-        #legend {
-            margin-top: 20px;
-        }
-
-        .legend-item {
-            display: flex;
-            align-items: center;
-            margin: 8px 0;
-            font-size: 13px;
-        }
-
-        .legend-color {
-            width: 20px;
-            height: 20px;
-            border-radius: 50%;
-            margin-right: 10px;
-            border: 2px solid #fff;
+            overflow-y: auto;
         }
 
         #file-input {
-            margin: 15px 0;
-            padding: 10px;
-            background: #0f3460;
-            border: 2px dashed #53a8b6;
-            border-radius: 6px;
+            margin-bottom: 20px;
+            padding: 16px;
+            background: #1a1f38;
+            border: 2px dashed #3b82f6;
+            border-radius: 8px;
             cursor: pointer;
             text-align: center;
+            transition: all 0.3s ease;
         }
 
         #file-input:hover {
-            background: #16213e;
+            background: #1e2642;
+            border-color: #60a5fa;
+            transform: translateY(-2px);
+        }
+
+        .file-label {
+            cursor: pointer;
+            color: #60a5fa;
+            font-size: 13px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
         }
 
         input[type="file"] {
             display: none;
         }
 
-        .file-label {
-            cursor: pointer;
-            color: #53a8b6;
-        }
-
-        #stats-panel {
-            margin-top: 20px;
-            padding: 15px;
-            background: #0f3460;
-            border-radius: 6px;
+        #stats {
+            background: #1a1f38;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 16px;
         }
 
         .stat-row {
             display: flex;
             justify-content: space-between;
-            margin: 5px 0;
+            margin: 10px 0;
             font-size: 13px;
         }
 
         .stat-label {
-            color: #53a8b6;
+            color: #9ca3af;
+            font-weight: 500;
+        }
+
+        .stat-value {
+            color: #60a5fa;
+            font-weight: 600;
+            font-variant-numeric: tabular-nums;
+        }
+
+        #layout-controls {
+            background: #1a1f38;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+
+        #layout-controls h3 {
+            font-size: 13px;
+            font-weight: 600;
+            color: #e8e8e8;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .control-group {
+            margin: 12px 0;
+        }
+
+        .control-label {
+            font-size: 12px;
+            color: #9ca3af;
+            margin-bottom: 6px;
+            display: block;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            height: 4px;
+            background: #2d3448;
+            border-radius: 2px;
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            background: #60a5fa;
+            cursor: pointer;
+            border-radius: 50%;
+            box-shadow: 0 2px 8px rgba(96, 165, 250, 0.4);
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            background: #60a5fa;
+            cursor: pointer;
+            border-radius: 50%;
+            border: none;
+            box-shadow: 0 2px 8px rgba(96, 165, 250, 0.4);
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 8px 0;
+        }
+
+        input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            accent-color: #60a5fa;
+            cursor: pointer;
         }
 
         button {
-            background: #53a8b6;
+            width: 100%;
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
             color: #fff;
             border: none;
-            padding: 10px 20px;
+            padding: 12px;
             border-radius: 6px;
             cursor: pointer;
-            font-size: 14px;
-            margin-top: 10px;
-            width: 100%;
+            font-size: 13px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin: 8px 0;
         }
 
         button:hover {
-            background: #4a96a3;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        #legend {
+            background: #1a1f38;
+            border-radius: 8px;
+            padding: 16px;
+        }
+
+        #legend h3 {
+            font-size: 13px;
+            font-weight: 600;
+            color: #e8e8e8;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 8px 0;
+            font-size: 12px;
+        }
+
+        .legend-color {
+            width: 16px;
+            height: 16px;
+            border-radius: 4px;
+            margin-right: 10px;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        #graph-container {
+            flex: 1;
+            position: relative;
+            background: radial-gradient(ellipse at center, #0f1937 0%, #0a0e27 100%);
+            overflow: hidden;
+        }
+
+        svg {
+            width: 100%;
+            height: 100%;
+            cursor: grab;
+        }
+
+        svg:active {
+            cursor: grabbing;
+        }
+
+        .node-group {
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .node-circle {
+            stroke: rgba(255, 255, 255, 0.8);
+            stroke-width: 2;
+            filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.5));
+            transition: all 0.3s ease;
+        }
+
+        .node-group:hover .node-circle {
+            stroke: #fbbf24;
+            stroke-width: 3;
+            filter: drop-shadow(0 4px 16px rgba(251, 191, 36, 0.6));
+        }
+
+        .node-text {
+            fill: #fff;
+            font-size: 11px;
+            font-weight: 600;
+            text-anchor: middle;
+            pointer-events: none;
+            paint-order: stroke;
+            stroke: rgba(0, 0, 0, 0.6);
+            stroke-width: 3px;
+            letter-spacing: 0.5px;
+        }
+
+        .edge {
+            fill: none;
+            stroke: #60a5fa;
+            stroke-width: 1.5;
+            stroke-opacity: 0.4;
+            transition: all 0.3s ease;
+        }
+
+        .edge.highlighted {
+            stroke: #fbbf24;
+            stroke-width: 3;
+            stroke-opacity: 0.9;
+            filter: drop-shadow(0 0 8px rgba(251, 191, 36, 0.6));
+        }
+
+        .edge.faded {
+            stroke-opacity: 0.05;
+        }
+
+        .node-group.highlighted .node-circle {
+            stroke: #fbbf24;
+            stroke-width: 4;
+            filter: drop-shadow(0 0 20px rgba(251, 191, 36, 0.8));
+        }
+
+        .node-group.faded {
+            opacity: 0.15;
+        }
+
+        .level-label {
+            fill: #6b7280;
+            font-size: 11px;
+            font-weight: 600;
+            text-anchor: end;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        #tooltip {
+            position: absolute;
+            background: rgba(15, 23, 42, 0.98);
+            color: #e8e8e8;
+            padding: 16px;
+            border-radius: 8px;
+            font-size: 12px;
+            pointer-events: none;
+            display: none;
+            z-index: 1000;
+            border: 1px solid #3b82f6;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(10px);
+            max-width: 320px;
+        }
+
+        .tooltip-header {
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: #60a5fa;
+            font-size: 13px;
+            letter-spacing: 0.5px;
+        }
+
+        .tooltip-section {
+            margin: 8px 0;
+            padding: 8px 0;
+            border-top: 1px solid #1e2642;
+        }
+
+        .tooltip-section:first-child {
+            border-top: none;
+            padding-top: 0;
+        }
+
+        .cell-grid {
+            display: inline-grid;
+            gap: 3px;
+            margin: 10px 0;
+            background: #0a0e27;
+            padding: 8px;
+            border-radius: 4px;
+        }
+
+        .cell {
+            background: #1a1f38;
+            padding: 6px 10px;
+            text-align: center;
+            border-radius: 4px;
+            font-family: 'SF Mono', monospace;
+            font-weight: 600;
+            color: #60a5fa;
+            min-width: 24px;
+            box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.3);
+        }
+
+        .tooltip-stat {
+            display: flex;
+            justify-content: space-between;
+            margin: 4px 0;
+            font-size: 11px;
+        }
+
+        .tooltip-stat-label {
+            color: #9ca3af;
+        }
+
+        .tooltip-stat-value {
+            color: #60a5fa;
+            font-weight: 600;
+        }
+
+        /* Loading animation */
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .fade-in {
+            animation: fadeIn 0.6s ease-out;
+        }
+
+        /* Scrollbar styling */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #0f1423;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #2d3448;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #3b82f6;
         }
     </style>
 </head>
-
 <body>
     <div id="container">
-        <div id="controls">
-            <h1>Sudoku Graph</h1>
-
-            <div id="file-input">
-                <label for="json-file" class="file-label">
-                    📁 Load Graph JSON
-                </label>
-                <input type="file" id="json-file" accept=".json">
+        <div id="sidebar">
+            <div id="header">
+                <h1>Sudoku Graph</h1>
+                <div class="subtitle">Hierarchical Permutation View</div>
             </div>
 
-            <div id="stats-panel">
-                <div class="stat-row">
-                    <span class="stat-label">Nodes:</span>
-                    <span id="node-count">0</span>
+            <div id="controls">
+                <div id="file-input">
+                    <label for="json-file" class="file-label">
+                        <span>📊</span>
+                        <span>Load Graph JSON</span>
+                    </label>
+                    <input type="file" id="json-file" accept=".json">
                 </div>
-                <div class="stat-row">
-                    <span class="stat-label">Edges:</span>
-                    <span id="edge-count">0</span>
+
+                <div id="stats">
+                    <div class="stat-row">
+                        <span class="stat-label">Nodes</span>
+                        <span class="stat-value" id="node-count">0</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">Edges</span>
+                        <span class="stat-value" id="edge-count">0</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">Minigrids</span>
+                        <span class="stat-value" id="minigrid-count">0</span>
+                    </div>
                 </div>
-                <div class="stat-row">
-                    <span class="stat-label">Minigrids:</span>
-                    <span id="minigrid-count">0</span>
+
+                <div id="layout-controls">
+                    <h3>Layout Settings</h3>
+                    
+                    <div class="control-group">
+                        <label class="control-label">
+                            Level Spacing: <span id="level-spacing-value">150</span>px
+                        </label>
+                        <input type="range" id="level-spacing" min="80" max="300" value="150">
+                    </div>
+
+                    <div class="control-group">
+                        <label class="control-label">
+                            Node Spacing: <span id="node-spacing-value">60</span>px
+                        </label>
+                        <input type="range" id="node-spacing" min="30" max="120" value="60">
+                    </div>
+
+                    <div class="control-group">
+                        <label class="control-label">
+                            Node Size: <span id="node-size-value">18</span>px
+                        </label>
+                        <input type="range" id="node-size" min="10" max="30" value="18">
+                    </div>
+
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="show-labels" checked>
+                        <label class="control-label" for="show-labels" style="margin: 0;">Show Level Labels</label>
+                    </div>
+
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="curved-edges" checked>
+                        <label class="control-label" for="curved-edges" style="margin: 0;">Curved Edges</label>
+                    </div>
+                </div>
+
+                <button id="reset-btn">Reset View</button>
+                <button id="fit-btn">Fit to Screen</button>
+
+                <div id="legend">
+                    <h3>Minigrids</h3>
+                    <div id="legend-content"></div>
                 </div>
             </div>
-
-            <button id="reset-btn">Reset View</button>
-
-            <div id="legend"></div>
         </div>
 
-        <div id="graph">
+        <div id="graph-container">
             <svg id="svg"></svg>
             <div id="tooltip"></div>
         </div>
     </div>
 
     <script>
-        const width = window.innerWidth - 350;
-        const height = window.innerHeight - 40;
-
-        const svg = d3.select('#svg')
-            .attr('width', width)
-            .attr('height', height);
-
-        const g = svg.append('g');
+        // Configuration
+        const config = {
+            levelSpacing: 150,
+            nodeSpacing: 60,
+            nodeSize: 18,
+            leftMargin: 80,
+            topMargin: 60,
+            curvedEdges: true,
+            showLabels: true
+        };
 
         // Color scale for minigrids
-        const colors = d3.scaleOrdinal(d3.schemeCategory10);
+        const colorScale = d3.scaleOrdinal()
+            .domain([0, 1, 2, 3, 4, 5, 6, 7, 8])
+            .range(['#60a5fa', '#f59e0b', '#10b981', '#ef4444', '#a78bfa', '#f97316', '#ec4899', '#6b7280', '#eab308']);
 
-        let simulation;
+        // SVG setup
+        const svg = d3.select('#svg');
+        const container = svg.append('g').attr('class', 'main-container');
+        const edgesGroup = container.append('g').attr('class', 'edges');
+        const nodesGroup = container.append('g').attr('class', 'nodes');
+        const labelsGroup = container.append('g').attr('class', 'labels');
+
         let graphData = null;
         let selectedNode = null;
+        let transform = d3.zoomIdentity;
 
         // Zoom behavior
         const zoom = d3.zoom()
             .scaleExtent([0.1, 4])
             .on('zoom', (event) => {
-                g.attr('transform', event.transform);
+                transform = event.transform;
+                container.attr('transform', transform);
             });
 
         svg.call(zoom);
 
         // File input handler
-        document.getElementById('json-file').addEventListener('change', function (e) {
-            const file = e.target.files[0];
+        document.getElementById('json-file').addEventListener('change', (event) => {
+            const file = event.target.files[0];
             if (file) {
                 const reader = new FileReader();
-                reader.onload = function (e) {
+                reader.onload = (e) => {
                     try {
                         graphData = JSON.parse(e.target.result);
                         visualizeGraph(graphData);
-                    } catch (err) {
-                        alert('Error parsing JSON: ' + err.message);
+                    } catch (error) {
+                        console.error('Error parsing JSON:', error);
+                        alert('Invalid JSON file');
                     }
                 };
                 reader.readAsText(file);
             }
         });
 
-        // Reset button
+        // Control handlers
+        document.getElementById('level-spacing').addEventListener('input', (e) => {
+            config.levelSpacing = parseInt(e.target.value);
+            document.getElementById('level-spacing-value').textContent = config.levelSpacing;
+            if (graphData) updateLayout();
+        });
+
+        document.getElementById('node-spacing').addEventListener('input', (e) => {
+            config.nodeSpacing = parseInt(e.target.value);
+            document.getElementById('node-spacing-value').textContent = config.nodeSpacing;
+            if (graphData) updateLayout();
+        });
+
+        document.getElementById('node-size').addEventListener('input', (e) => {
+            config.nodeSize = parseInt(e.target.value);
+            document.getElementById('node-size-value').textContent = config.nodeSize;
+            if (graphData) updateNodeSizes();
+        });
+
+        document.getElementById('show-labels').addEventListener('change', (e) => {
+            config.showLabels = e.target.checked;
+            labelsGroup.style('display', config.showLabels ? 'block' : 'none');
+        });
+
+        document.getElementById('curved-edges').addEventListener('change', (e) => {
+            config.curvedEdges = e.target.checked;
+            if (graphData) updateEdges();
+        });
+
         document.getElementById('reset-btn').addEventListener('click', () => {
-            if (graphData) {
-                clearHighlight();
-                svg.transition().duration(750).call(
-                    zoom.transform,
-                    d3.zoomIdentity
-                );
-            }
+            clearHighlight();
+            svg.transition().duration(750).call(zoom.transform, d3.zoomIdentity);
+        });
+
+        document.getElementById('fit-btn').addEventListener('click', () => {
+            if (graphData) fitToScreen();
         });
 
         function visualizeGraph(data) {
-            // Clear previous graph
-            g.selectAll('*').remove();
+            // Clear previous
+            edgesGroup.selectAll('*').remove();
+            nodesGroup.selectAll('*').remove();
+            labelsGroup.selectAll('*').remove();
 
             // Update stats
             document.getElementById('node-count').textContent = data.nodes.length;
             document.getElementById('edge-count').textContent = data.edges.length;
-            const minigridCount = new Set(data.nodes.map(n => n.minigrid)).size;
-            document.getElementById('minigrid-count').textContent = minigridCount;
+            
+            const minigrids = [...new Set(data.nodes.map(n => n.minigrid))].sort((a, b) => a - b);
+            document.getElementById('minigrid-count').textContent = minigrids.length;
 
-            // Create legend
-            updateLegend(data);
+            // Group nodes by minigrid
+            const nodesByMinigrid = d3.group(data.nodes, d => d.minigrid);
 
-            // Create force simulation
-            simulation = d3.forceSimulation(data.nodes)
-                .force('link', d3.forceLink(data.edges)
-                    .id(d => d.id)
-                    .distance(100))
-                .force('charge', d3.forceManyBody()
-                    .strength(-500))
-                .force('center', d3.forceCenter(width / 2, height / 2))
-                .force('collision', d3.forceCollide().radius(15))
-                .force('x', d3.forceX(d => {
-                    // Group by minigrid column
-                    const col = d.minigrid % Math.sqrt(minigridCount);
-                    return (col + 1) * width / (Math.sqrt(minigridCount) + 1);
-                }).strength(0.1))
-                .force('y', d3.forceY(d => {
-                    // Group by minigrid row
-                    const row = Math.floor(d.minigrid / Math.sqrt(minigridCount));
-                    return (row + 1) * height / (Math.sqrt(minigridCount) + 1);
-                }).strength(0.3));
+            // Get viewport width for centering
+            const svgWidth = svg.node().clientWidth;
+            const centerX = svgWidth / 2;
 
-            // Create links
-            const link = g.append('g')
-                .selectAll('line')
-                .data(data.edges)
-                .join('line')
-                .attr('class', 'link');
+            // Calculate positions - CENTER each level
+            minigrids.forEach((mg, levelIndex) => {
+                const levelNodes = nodesByMinigrid.get(mg);
+                const y = config.topMargin + levelIndex * config.levelSpacing;
+                
+                // Calculate total width needed for this level
+                const totalWidth = (levelNodes.length - 1) * config.nodeSpacing;
+                const startX = centerX - totalWidth / 2;
 
-            const node = g.append('g')
-                .selectAll('g.node')
+                levelNodes.forEach((node, i) => {
+                    node.x = startX + i * config.nodeSpacing;
+                    node.y = y;
+                    node.levelIndex = levelIndex;
+                });
+
+                // Add level label
+                if (config.showLabels) {
+                    labelsGroup.append('text')
+                        .datum({ mg, x: startX - 60, y })
+                        .attr('class', 'level-label')
+                        .attr('x', d => d.x)
+                        .attr('y', d => d.y + 4)
+                        .text(`MG ${mg}`);
+                }
+            });
+
+            // Create edges with source/target references
+            const edgesData = data.edges.map(edge => {
+                const source = data.nodes.find(n => n.id === edge.source);
+                const target = data.nodes.find(n => n.id === edge.target);
+                return { source, target };
+            }).filter(e => e.source && e.target);
+
+            console.log('Drawing', edgesData.length, 'edges');
+
+            // Draw edges FIRST (so they appear behind nodes)
+            const edges = edgesGroup.selectAll('path')
+                .data(edgesData)
+                .join('path')
+                .attr('class', 'edge')
+                .attr('d', d => getEdgePath(d))
+                .attr('stroke', '#60a5fa')
+                .attr('stroke-opacity', 0.3)
+
+            // Draw nodes
+            const nodes = nodesGroup.selectAll('g')
                 .data(data.nodes)
                 .join('g')
-                .attr('class', 'node')
-                .call(drag(simulation))
+                .attr('class', 'node-group')
+                .attr('transform', d => `translate(${d.x}, ${d.y})`)
                 .on('click', handleNodeClick)
-                .on('mouseover', handleMouseOver)
-                .on('mouseout', handleMouseOut);
+                .on('mouseenter', handleMouseEnter)
+                .on('mouseleave', handleMouseLeave);
 
-            // circle
-            node.append('circle')
-                .attr('r', 20)
-                .attr('fill', d => colors(d.minigrid))
-                .attr('stroke', '#fff')
-                .attr('stroke-width', 2);
+            nodes.append('circle')
+                .attr('class', 'node-circle')
+                .attr('r', config.nodeSize)
+                .attr('fill', d => colorScale(d.minigrid));
 
-            node.append('text')
-                .attr('text-anchor', 'middle')
+            nodes.append('text')
+                .attr('class', 'node-text')
                 .attr('dy', 4)
-                .attr('font-size', '13px')
-                .attr('font-weight', '600')
-                .style('pointer-events', 'none')
-                .style('paint-order', 'stroke')
-                .style('stroke', 'rgba(0,0,0,0.45)')
-                .style('stroke-width', 2.5)
-                .text(d => `m${d.minigrid}p${d.perm_id}`)
-                .attr('fill', "#fff");
+                .text(d => `m${d.minigrid}p${d.perm_id}`);
 
-            // Update positions on tick
-            simulation.on('tick', () => {
-                link
-                    .attr('x1', d => d.source.x)
-                    .attr('y1', d => d.source.y)
-                    .attr('x2', d => d.target.x)
-                    .attr('y2', d => d.target.y);
+            // Update legend
+            updateLegend(data);
 
-                node
-                    .attr('transform', d => `translate(${d.x},${d.y})`);
-
-            });
+            // Fit to screen
+            setTimeout(() => fitToScreen(), 100);
         }
 
-        function updateLegend(data) {
-            const legend = document.getElementById('legend');
-            legend.innerHTML = '<h3 style="margin-bottom: 10px;">Minigrids</h3>';
+        function getEdgePath(edge) {
+            const { source, target } = edge;
+            
+            if (!config.curvedEdges) {
+                return `M ${source.x} ${source.y} L ${target.x} ${target.y}`;
+            }
 
-            const minigrids = [...new Set(data.nodes.map(n => n.minigrid))].sort((a, b) => a - b);
+            // Bezier curve for hierarchical layout
+            const dx = target.x - source.x;
+            const dy = target.y - source.y;
+            const dr = Math.sqrt(dx * dx + dy * dy);
+            
+            // Control points for smoother curves
+            const cx1 = source.x;
+            const cy1 = source.y + dy * 0.5;
+            const cx2 = target.x;
+            const cy2 = target.y - dy * 0.5;
 
-            minigrids.forEach(mg => {
-                const item = document.createElement('div');
-                item.className = 'legend-item';
+            return `M ${source.x} ${source.y} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${target.x} ${target.y}`;
+        }
 
-                const colorBox = document.createElement('div');
-                colorBox.className = 'legend-color';
-                colorBox.style.backgroundColor = colors(mg);
+        function updateLayout() {
+            if (!graphData) return;
 
-                const label = document.createElement('span');
-                const node = data.nodes.find(n => n.minigrid === mg);
-                label.textContent = `MG ${mg} (${node.board_position})`;
+            const minigrids = [...new Set(graphData.nodes.map(n => n.minigrid))].sort((a, b) => a - b);
+            const nodesByMinigrid = d3.group(graphData.nodes, d => d.minigrid);
+            
+            // Get viewport width for centering
+            const svgWidth = svg.node().clientWidth;
+            const centerX = svgWidth / 2;
 
-                item.appendChild(colorBox);
-                item.appendChild(label);
-                legend.appendChild(item);
+            // Store label positions for update
+            const labelData = [];
+
+            minigrids.forEach((mg, levelIndex) => {
+                const levelNodes = nodesByMinigrid.get(mg);
+                const y = config.topMargin + levelIndex * config.levelSpacing;
+                
+                // Calculate total width and center it
+                const totalWidth = (levelNodes.length - 1) * config.nodeSpacing;
+                const startX = centerX - totalWidth / 2;
+
+                levelNodes.forEach((node, i) => {
+                    node.x = startX + i * config.nodeSpacing;
+                    node.y = y;
+                });
+
+                // Store label data
+                labelData.push({ mg, x: startX - 60, y: y + 4 });
             });
+
+            // Update node positions
+            nodesGroup.selectAll('g')
+                .transition()
+                .duration(300)
+                .attr('transform', d => `translate(${d.x}, ${d.y})`);
+
+            // Update edge paths
+            updateEdges();
+
+            // Update labels with new positions
+            labelsGroup.selectAll('text')
+                .data(labelData)
+                .transition()
+                .duration(300)
+                .attr('x', d => d.x)
+                .attr('y', d => d.y);
+        }
+
+        function updateEdges() {
+            edgesGroup.selectAll('path')
+                .transition()
+                .duration(300)
+                .attr('d', d => getEdgePath(d));
+        }
+
+        function updateNodeSizes() {
+            nodesGroup.selectAll('.node-circle')
+                .transition()
+                .duration(200)
+                .attr('r', config.nodeSize);
         }
 
         function handleNodeClick(event, d) {
@@ -407,60 +801,32 @@
 
             // Get connected node IDs
             const connectedIds = new Set();
-            graphData.edges.forEach(edge => {
+            edgesGroup.selectAll('path').each(function(edge) {
                 if (edge.source.id === d.id) connectedIds.add(edge.target.id);
                 if (edge.target.id === d.id) connectedIds.add(edge.source.id);
             });
 
-            // Highlight nodes
-            g.selectAll('.node')
+            // Highlight
+            nodesGroup.selectAll('.node-group')
                 .classed('highlighted', n => n.id === d.id)
                 .classed('faded', n => n.id !== d.id && !connectedIds.has(n.id));
 
-            // Highlight links
-            g.selectAll('.link')
-                .classed('highlighted', e =>
-                    (e.source.id === d.id || e.target.id === d.id))
-                .classed('faded', e =>
-                    e.source.id !== d.id && e.target.id !== d.id);
+            edgesGroup.selectAll('path')
+                .classed('highlighted', e => e.source.id === d.id || e.target.id === d.id)
+                .classed('faded', e => e.source.id !== d.id && e.target.id !== d.id);
         }
 
         function clearHighlight() {
             selectedNode = null;
-            g.selectAll('.node')
+            nodesGroup.selectAll('.node-group')
                 .classed('highlighted', false)
                 .classed('faded', false);
-            g.selectAll('.link')
+            edgesGroup.selectAll('path')
                 .classed('highlighted', false)
                 .classed('faded', false);
         }
-        function positionTooltipWithinGraph(event, tooltip) {
-            const graphEl = document.getElementById('graph');
-            const graphRect = graphEl.getBoundingClientRect();
 
-            // using clientX/Y -> relative to viewport, subtract graph's top-left
-            let x = event.clientX - graphRect.left + 20; // px inside graph
-            let y = event.clientY - graphRect.top + 20;
-
-            // measure tooltip size AFTER it's visible
-            const ttRect = tooltip.getBoundingClientRect();
-            const padding = 8;
-
-            // clamp horizontally to graph inner width
-            const maxX = graphRect.width - ttRect.width - padding;
-            if (x > maxX) x = Math.max(padding, maxX);
-            if (x < padding) x = padding;
-
-            // clamp vertically to graph inner height
-            const maxY = graphRect.height - ttRect.height - padding;
-            if (y > maxY) y = Math.max(padding, maxY);
-            if (y < padding) y = padding;
-
-            tooltip.style.left = `${x}px`;
-            tooltip.style.top = `${y}px`;
-        }
-
-        function handleMouseOver(event, d) {
+        function handleMouseEnter(event, d) {
             const tooltip = document.getElementById('tooltip');
             const K = Math.sqrt(d.cells.length);
 
@@ -470,68 +836,117 @@
             });
             cellsHtml += '</div>';
 
-            const connections = graphData.edges.filter(e =>
-                e.source.id === d.id || e.target.id === d.id
-            ).length;
+            const connections = edgesGroup.selectAll('path')
+                .filter(e => e.source.id === d.id || e.target.id === d.id)
+                .size();
 
             tooltip.innerHTML = `
-                <div class="tooltip-header">Minigrid ${d.minigrid} - Permutation ${d.perm_id}</div>
-                <div><strong>Position:</strong> ${d.board_position}</div>
-                ${cellsHtml}
-                <div class="stats">
-                    <div><strong>Node ID:</strong> ${d.id}</div>
-                    <div><strong>Connections:</strong> ${connections}</div>
+                <div class="tooltip-header">Minigrid ${d.minigrid} – Permutation ${d.perm_id}</div>
+                <div class="tooltip-section">
+                    <div class="tooltip-stat">
+                        <span class="tooltip-stat-label">Position:</span>
+                        <span class="tooltip-stat-value">${d.board_position}</span>
+                    </div>
+                    <div class="tooltip-stat">
+                        <span class="tooltip-stat-label">Node ID:</span>
+                        <span class="tooltip-stat-value">${d.id}</span>
+                    </div>
+                    <div class="tooltip-stat">
+                        <span class="tooltip-stat-label">Connections:</span>
+                        <span class="tooltip-stat-value">${connections}</span>
+                    </div>
+                </div>
+                <div class="tooltip-section">
+                    ${cellsHtml}
                 </div>
             `;
 
-            // make visible so we can measure it, then position relative to #graph
             tooltip.style.display = 'block';
+            positionTooltip(event);
 
-            // position immediately and then follow mouse while inside node
-            positionTooltipWithinGraph(event, tooltip);
+            d3.select(event.currentTarget).on('mousemove', positionTooltip);
+        }
 
-            // add a namespaced mousemove listener on svg so moving the mouse keeps tooltip clamped
-            // (use svg node from d3 selection)
-            d3.select('#svg').on('mousemove.tooltip', (ev) => {
-                positionTooltipWithinGraph(ev, tooltip);
+        function handleMouseLeave() {
+            const tooltip = document.getElementById('tooltip');
+            tooltip.style.display = 'none';
+        }
+
+        function positionTooltip(event) {
+            const tooltip = document.getElementById('tooltip');
+            const container = document.getElementById('graph-container');
+            const containerRect = container.getBoundingClientRect();
+
+            let x = event.clientX - containerRect.left + 20;
+            let y = event.clientY - containerRect.top + 20;
+
+            const tooltipRect = tooltip.getBoundingClientRect();
+            const padding = 10;
+
+            if (x + tooltipRect.width > containerRect.width - padding) {
+                x = containerRect.width - tooltipRect.width - padding;
+            }
+
+            if (y + tooltipRect.height > containerRect.height - padding) {
+                y = containerRect.height - tooltipRect.height - padding;
+            }
+
+            tooltip.style.left = `${x}px`;
+            tooltip.style.top = `${y}px`;
+        }
+
+        function updateLegend(data) {
+            const legendContent = document.getElementById('legend-content');
+            legendContent.innerHTML = '';
+
+            const minigrids = [...new Set(data.nodes.map(n => n.minigrid))].sort((a, b) => a - b);
+
+            minigrids.forEach(mg => {
+                const item = document.createElement('div');
+                item.className = 'legend-item';
+
+                const colorBox = document.createElement('div');
+                colorBox.className = 'legend-color';
+                colorBox.style.backgroundColor = colorScale(mg);
+
+                const node = data.nodes.find(n => n.minigrid === mg);
+                const label = document.createElement('span');
+                label.textContent = `MG ${mg} (${node.board_position})`;
+
+                item.appendChild(colorBox);
+                item.appendChild(label);
+                legendContent.appendChild(item);
             });
         }
 
+        function fitToScreen() {
+            if (!graphData || graphData.nodes.length === 0) return;
 
-        function handleMouseOut() {
-            const tooltip = document.getElementById('tooltip');
-            tooltip.style.display = 'none';
-            // remove the namespaced mousemove
-            d3.select('#svg').on('mousemove.tooltip', null);
+            const padding = 100;
+            const bounds = {
+                minX: d3.min(graphData.nodes, d => d.x) - config.nodeSize - padding,
+                maxX: d3.max(graphData.nodes, d => d.x) + config.nodeSize + padding,
+                minY: d3.min(graphData.nodes, d => d.y) - config.nodeSize - padding,
+                maxY: d3.max(graphData.nodes, d => d.y) + config.nodeSize + padding
+            };
+
+            const width = bounds.maxX - bounds.minX;
+            const height = bounds.maxY - bounds.minY;
+
+            const svgWidth = svg.node().clientWidth;
+            const svgHeight = svg.node().clientHeight;
+
+            const scale = Math.min(svgWidth / width, svgHeight / height) * 0.85;
+            const translateX = (svgWidth - width * scale) / 2 - bounds.minX * scale;
+            const translateY = (svgHeight - height * scale) / 2 - bounds.minY * scale;
+
+            svg.transition()
+                .duration(750)
+                .call(zoom.transform, d3.zoomIdentity.translate(translateX, translateY).scale(scale));
         }
 
-        function drag(simulation) {
-            function dragstarted(event) {
-                if (!event.active) simulation.alphaTarget(0.3).restart();
-                event.subject.fx = event.subject.x;
-                event.subject.fy = event.subject.y;
-            }
-
-            function dragged(event) {
-                event.subject.fx = event.x;
-                event.subject.fy = event.y;
-            }
-
-            function dragended(event) {
-                if (!event.active) simulation.alphaTarget(0);
-                event.subject.fx = null;
-                event.subject.fy = null;
-            }
-
-            return d3.drag()
-                .on('start', dragstarted)
-                .on('drag', dragged)
-                .on('end', dragended);
-        }
-
-        // Click on background to clear highlight
+        // Clear highlight on background click
         svg.on('click', clearHighlight);
     </script>
 </body>
-
 </html>
