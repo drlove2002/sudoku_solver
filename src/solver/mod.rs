@@ -2,42 +2,18 @@ pub mod extraction;
 pub mod heuristics;
 pub mod permutations;
 pub mod pruning;
+pub mod report;
 
 use crate::types::{
-    Board,
     graph::{Graph, PermutationNode},
     masks::Masks,
+    Board,
 };
-use extraction::{Extractor, PuzzleClass, Solution};
+use extraction::Extractor;
 use log::{debug, info};
 use pruning::Pruner;
+use report::{PuzzleClass, SolveReport, SolveStats};
 use std::time::Instant;
-
-#[derive(Debug, Clone)]
-pub struct SolveStats<const N: usize> {
-    pub permutation_counts: [usize; N],
-    pub total_invocations: usize,
-    pub initial_vertex_count: usize,
-    pub initial_edge_count: usize,
-    pub pruned_vertex_count: usize,
-    pub pruned_edge_count: usize,
-    pub removed_vertices: usize,
-    pub solution_count: usize,
-    pub puzzle_classification: PuzzleClass,
-    pub mask_init_time_ns: u128,
-    pub heuristic_time_ns: u128,
-    pub permutation_time_ns: u128,
-    pub edge_build_time_ns: u128,
-    pub pruning_time_ns: u128,
-    pub extraction_time_ns: u128,
-    pub total_time_ns: u128,
-}
-
-#[derive(Debug, Clone)]
-pub struct SolveReport<const N: usize> {
-    pub solutions: Vec<Solution<N>>,
-    pub stats: SolveStats<N>,
-}
 
 pub struct SudokuSolver<const N: usize, const K: usize> {
     pub board: Board<N>,
@@ -91,7 +67,7 @@ impl<const N: usize, const K: usize> SudokuSolver<N, K> {
 
         info!("=== PHASE 2: MINIGRID PERMUTATION GENERATION ===");
         let phase_start = Instant::now();
-        let permutations: [Vec<PermutationNode<N, K>>; N] = self.generate_all_permutations(&heuristic_board, &masks);
+        let permutations: [Vec<PermutationNode<N, K>>; N] = permutations::generate_all_permutations(&heuristic_board, &masks);
         let permutation_time_ns = phase_start.elapsed().as_nanos();
         let permutation_counts = std::array::from_fn(|idx| permutations[idx].len());
         let total_invocations = count_dependent_pair_checks(&permutations);

@@ -1,4 +1,4 @@
-use solver::{SudokuSolver, dataset_parser::parse_puzzle_string, init_logger, types::Board};
+use solver::{init_logger, types::Board, utils::dataset::parse_puzzle_string, SudokuSolver};
 use std::fs::File;
 use std::io::Write;
 use std::time::Duration;

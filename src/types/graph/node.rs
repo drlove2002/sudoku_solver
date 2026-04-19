@@ -1,6 +1,6 @@
 use std::fmt;
 
-use crate::types::masks::DirtyMask;
+use crate::types::bitstring::DirtyMask;
 
 #[derive(Debug, Clone)]
 pub struct PermutationNode<const N: usize, const K: usize> {

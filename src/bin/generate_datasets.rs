@@ -1,7 +1,7 @@
+use rand::rng;
 use rand::seq::IndexedRandom;
 use rand::seq::SliceRandom;
-use rand::rng;
-use solver::dataset_parser::{parse_csv, stratified_sample, SudokuPuzzle};
+use solver::utils::dataset::{parse_csv, stratified_sample, SudokuPuzzle};
 use std::fs::File;
 use std::io::Write;
 

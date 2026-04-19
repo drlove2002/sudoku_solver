@@ -88,8 +88,8 @@ mod tests {
     use super::*;
     use crate::{
         SudokuSolver,
-        dataset_parser::parse_puzzle_string,
-        types::{Board, graph::Graph, masks::Masks},
+        types::{graph::Graph, masks::Masks, Board},
+        utils::dataset::parse_puzzle_string,
     };
 
     const N: usize = 9;
@@ -106,7 +106,7 @@ mod tests {
         let solver = SudokuSolver::<N, K>::new(board);
         let mut masks = Masks::<N>::default();
         masks.generate(&solver.board);
-        let permutations = solver.generate_all_permutations(&solver.board, &masks);
+        let permutations = crate::solver::permutations::generate_all_permutations(&solver.board, &masks);
         let mut graph = Graph::new(permutations);
         graph.create_edges();
         graph

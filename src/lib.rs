@@ -1,8 +1,8 @@
-pub mod dataset_parser;
-mod log;
-mod solver;
+pub mod solver;
 pub mod types;
-pub use solver::permutations;
+pub mod utils;
 
-pub use crate::log::init_logger;
-pub use crate::solver::{SolveReport, SolveStats, SudokuSolver};
+pub use crate::solver::report::{SolveReport, SolveStats};
+pub use crate::solver::SudokuSolver;
+pub use crate::utils::init_logger;
+pub use solver::permutations;

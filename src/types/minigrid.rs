@@ -1,4 +1,4 @@
-use crate::types::masks::EmptyMask;
+use crate::types::bitstring::EmptyMask;
 
 use super::Board;
 

@@ -1,4 +1,4 @@
-use solver::{SudokuSolver, dataset_parser::parse_puzzle_string, types::Board};
+use solver::{SudokuSolver, utils::dataset::parse_puzzle_string, types::Board};
 
 const N: usize = 9;
 const K: usize = 3;

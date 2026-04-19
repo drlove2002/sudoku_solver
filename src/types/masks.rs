@@ -1,8 +1,7 @@
 use log::{debug, trace};
 
 use crate::types::Board;
-mod bitstring;
-pub use bitstring::{DirtyMask, EmptyMask};
+use crate::types::bitstring::DirtyMask;
 
 #[derive(Debug)]
 pub struct Masks<const N: usize> {

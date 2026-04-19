@@ -1,4 +1,4 @@
-use crate::types::{Board, masks::Masks};
+use crate::types::{masks::Masks, Board};
 
 /// Applies the "Hidden Single" deduction rule iteratively until no more cells can be filled.
 /// Returns the total number of cells filled.

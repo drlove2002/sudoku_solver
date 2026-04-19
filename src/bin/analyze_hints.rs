@@ -1,6 +1,6 @@
-use rand::seq::SliceRandom;
 use rand::rng;
-use solver::{SudokuSolver, init_logger, types::Board, dataset_parser::parse_puzzle_string};
+use rand::seq::SliceRandom;
+use solver::{init_logger, types::Board, utils::dataset::parse_puzzle_string, SudokuSolver};
 use std::fs::File;
 use std::io::Write;
 

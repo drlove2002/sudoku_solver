@@ -3,19 +3,7 @@ use crate::types::{
     graph::{Graph, Relation},
 };
 use log::{debug, info, warn};
-
-#[derive(Debug, Clone)]
-pub struct Solution<const N: usize> {
-    pub board: Board<N>,
-    pub permutation_ids: [usize; N], // Which permutation used per minigrid
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum PuzzleClass {
-    Unsolvable,
-    Unique,
-    Ambiguous(usize),
-}
+use super::report::Solution;
 
 /// Finds all complete, valid permutation assignments for the board.
 ///
