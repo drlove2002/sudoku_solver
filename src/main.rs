@@ -1,5 +1,5 @@
 use log::{debug, info};
-use solver::{SudokuSolver, init_logger, types};
+use solver::{utils::dataset::parse_puzzle_string, SudokuSolver, init_logger, types};
 
 const N: usize = 9;
 const K: usize = N.isqrt();
@@ -23,15 +23,19 @@ fn main() {
         .unwrap_or_else(|_| panic!("Failed to read {}", input_file));
     info!("Read input file: {}", input_file);
 
-    let mut cells = [[0u8; N]; N];
-    let mut nums = content
-        .split_whitespace()
-        .map(|s| s.parse::<u8>().expect("Invalid number"));
+    // Clean up content (remove spaces, newlines, tabs)
+    let cleaned_content: String = content
+        .chars()
+        .filter(|c| !c.is_whitespace())
+        .map(|c| if c == '0' { '.' } else { c })
+        .collect();
 
-    for row in cells.iter_mut() {
-        for cell in row.iter_mut() {
-            *cell = nums.next().expect("Not enough numbers in input file");
-        }
+    let parsed_cells = parse_puzzle_string(&cleaned_content)
+        .unwrap_or_else(|e| panic!("Failed to parse puzzle: {}", e));
+
+    let mut cells = [[0u8; N]; N];
+    for (i, &val) in parsed_cells.iter().enumerate() {
+        cells[i / N][i % N] = val;
     }
 
     let board = types::Board::<N>::new(cells);
