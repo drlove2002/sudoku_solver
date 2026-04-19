@@ -1,0 +1,140 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{geometry}
+\usepackage{hyperref}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{longtable}
+\usepackage{xspace}
+
+\geometry{margin=1in}
+
+\title{\textbf{A Minigrid-Graph Sudoku Solver}\\
+\large Holistic Design, Exact Support Pruning, and Analysis Workflow}
+\author{}
+\date{}
+
+\lstset{
+    basicstyle=\ttfamily\small,
+    keywordstyle=\color{blue},
+    commentstyle=\color{gray},
+    breaklines=true,
+    frame=single
+}
+
+\newcommand{\optionalfigure}[3]{
+    \begin{figure}[h]
+        \centering
+        \IfFileExists{#1}{
+            \includegraphics[width=#2]{#1}
+        }{
+            \fbox{\parbox[c][2.2in][c]{0.8\textwidth}{\centering Figure placeholder:\\\texttt{\detokenize{#1}}\\Generate with \texttt{scripts/generate\_figures.py}.}}
+        }
+        \caption{#3}
+    \end{figure}
+}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+This paper describes the full \texttt{sudoku\_solver} project as an end-to-end Sudoku research and engineering system. The solver decomposes a $9 \times 9$ board into minigrids, generates valid box-level permutations, constructs a compatibility graph across dependent minigrids, prunes unsupported configurations, and extracts complete solutions. In addition to the core algorithm, the project includes dataset analysis tooling, reproducible figure generation, and a paper pipeline intended to evolve as new measurements and scripts are added. The document unifies the previously isolated branch-free relationship note into a broader project view.
+\end{abstract}
+
+\section{Project Overview}
+
+The repository is organized around five solver phases and a paper-analysis pipeline:
+\begin{enumerate}
+    \item Mask initialization
+    \item Minigrid permutation generation
+    \item Compatibility graph construction
+    \item Exact support pruning
+    \item Solution extraction
+\end{enumerate}
+
+Supporting infrastructure includes sample datasets, CSV analysis outputs, plotting scripts, and LaTeX sources.
+
+\section{Motivation}
+
+Traditional Sudoku solvers often rely on direct backtracking over cells. This project instead treats each $3 \times 3$ minigrid as the primary combinational unit. That shift makes it possible to:
+\begin{itemize}
+    \item exploit box-local permutation structure,
+    \item precompute row and column compatibility masks,
+    \item reason about global consistency through a graph of minigrid permutations,
+    \item analyze solver behavior phase-by-phase across puzzle datasets.
+\end{itemize}
+
+\section{Architecture}
+
+\subsection{Phase 1: Mask Initialization}
+
+The board is parsed into row, column, and box conflict masks. These masks provide the legality checks used during local permutation generation.
+
+\subsection{Phase 2: Minigrid Permutation Generation}
+
+For each minigrid, the solver runs a depth-first search with a minimum-remaining-values heuristic. The output of this phase is a set of valid candidate fillings for each minigrid. These candidates are represented as permutation nodes containing both cell assignments and row/column masks.
+
+\subsection{Phase 3: Graph Construction}
+
+Each permutation node becomes a graph vertex. Edges connect vertices in dependent minigrids when row or column masks are compatible. The project retains a specialized branch-free relationship primitive, documented separately in \texttt{minigrid\_relationship.tex}, for identifying whether two minigrids share row or column constraints.
+
+\subsection{Phase 4: Exact Support Pruning}
+
+Earlier connectivity-only pruning was too aggressive on realistic puzzles because local degree conditions do not imply membership in a globally consistent full-board assignment. The current implementation instead performs exact support pruning: it explores compatible minigrid configurations, marks permutations that appear in at least one full assignment, and discards unsupported nodes. This makes pruning semantically aligned with actual solvability.
+
+\subsection{Phase 5: Solution Extraction}
+
+After pruning, the remaining graph is searched for complete assignments. Valid assignments are reconstructed into Sudoku boards and classified as unsolvable, unique, or ambiguous.
+
+\section{Analysis Pipeline}
+
+The project includes a structured analysis path:
+\begin{itemize}
+    \item \texttt{examples/analyze\_dataset.rs} generates CSV outputs,
+    \item \texttt{results/} stores analysis outputs,
+    \item \texttt{scripts/generate\_figures.py} produces paper figures,
+    \item \texttt{scripts/run\_paper\_pipeline.sh} ties analysis, plotting, and paper generation together.
+\end{itemize}
+
+Current analysis outputs include:
+\begin{itemize}
+    \item per-difficulty CSV files,
+    \item \texttt{complete\_analysis.csv},
+    \item \texttt{phase\_breakdown.csv},
+    \item \texttt{statistics\_summary.txt}.
+\end{itemize}
+
+\section{Generated Figures}
+
+\optionalfigure{figures/permutation_distribution.pdf}{0.85\textwidth}{Distribution of minigrid permutation counts.}
+
+\optionalfigure{figures/graph_reduction.pdf}{0.9\textwidth}{Average graph size before and after pruning.}
+
+\optionalfigure{figures/phase_breakdown.pdf}{0.85\textwidth}{Average time spent in each phase by difficulty.}
+
+\optionalfigure{figures/solution_classification.pdf}{0.8\textwidth}{Solution classification across analyzed puzzles.}
+
+\section{Current Status}
+
+The implementation now includes all five phases and integration tests for representative easy and medium sample puzzles. The paper pipeline is intended to remain open-ended: additional scripts, more detailed analysis, and further figures can be added without restructuring the repository again.
+
+\section{Future Work}
+
+Near-term work includes:
+\begin{itemize}
+    \item larger dataset runs,
+    \item optimization of exact support pruning for harder puzzles,
+    \item richer benchmark suites,
+    \item expanded plots and tables for publication.
+\end{itemize}
+
+Longer-term work may include new data analysis scripts, solver variants, or comparative baselines against conventional cell-level backtracking approaches.
+
+\section{Conclusion}
+
+The repository has evolved from a narrowly focused algorithm note into a complete solver-and-analysis project. The full paper source introduced here is meant to become the main narrative document for that broader effort, while the original minigrid relationship note remains a focused reference on one important low-level optimization.
+
+\end{document}

@@ -1,0 +1,99 @@
+MINIGRID RELATIONSHIP ALGORITHM - BENCHMARK RESULTS
+====================================================
+
+Hardware Configuration:
+- CPU: Intel Core i5-12600K (10 cores, 16 threads)
+- Base Clock: 3.7 GHz
+- Max Turbo: 4.9 GHz
+- L1 Cache Line: 64 bytes
+- OS: Linux 6.19.9 (x86-64)
+- Compiler: rustc 1.91.1 (ed61e7d7e 2025-11-07)
+- Framework: Criterion 0.8.1
+- Samples: 100 per benchmark
+- Optimization: opt-level=3, LTO enabled, single codegen unit
+
+====================================================
+BENCHMARK RESULTS SUMMARY
+====================================================
+
+1. RANDOM PAIRS (1000 calls, uniform distribution)
+---------------------------------------------------
+Branch-free:  1.1491 µs (1.1491 ns/call) → 870M ops/sec
+Branching:    1.1872 µs (1.1872 ns/call) → 842M ops/sec
+Advantage:    3.2% faster (branch-free)
+
+2. SEQUENTIAL PAIRS (8 calls: (0,1), (1,2), ..., (7,8))
+--------------------------------------------------------
+Branch-free:  9.6357 ns total (1.20 ns/call)
+Branching:    9.4564 ns total (1.18 ns/call)
+Advantage:    1.9% slower (branch predictor effective)
+
+3. SAME-ROW PAIRS (9 calls, all row-compatible)
+------------------------------------------------
+Branch-free:  10.712 ns total (1.19 ns/call)
+Branching:    10.838 ns total (1.20 ns/call)
+Advantage:    1.2% faster (branch-free)
+
+4. SAME-COLUMN PAIRS (9 calls, all column-compatible)
+------------------------------------------------------
+Branch-free:  10.781 ns total (1.20 ns/call)
+Branching:    10.611 ns total (1.18 ns/call)
+Advantage:    1.6% slower (branch-free)
+
+5. ALTERNATING PATTERNS (9 calls, mixed same/different)
+--------------------------------------------------------
+Branch-free:  10.661 ns total (1.18 ns/call)
+Branching:    10.654 ns total (1.18 ns/call)
+Advantage:    Negligible difference
+
+6. SINGLE CALL (isolated latency measurement)
+----------------------------------------------
+Branch-free:  1.2123 ns/call → 825M ops/sec
+Branching:    1.3074 ns/call → 765M ops/sec
+Advantage:    7.3% faster (branch-free) *** BEST CASE ***
+
+7. GRAPH API (1000 calls via production API)
+---------------------------------------------
+Branch-free:  1.1745 µs (1.1745 ns/call) → 851M ops/sec
+
+====================================================
+PERFORMANCE ANALYSIS
+====================================================
+
+BEST CASE: Single call latency (7.3% improvement)
+TYPICAL CASE: Random pairs (3.2% improvement)
+WORST CASE: Sequential patterns (1.9% slower due to effective branch prediction)
+
+INVOCATION SCALING:
+- 10^7 calls (easy puzzle):   ~1 ms saved
+- 10^8 calls (hard puzzle):   ~10 ms saved
+- 10^9 calls (extreme case):  ~100 ms saved
+
+KEY INSIGHTS:
+1. Modern branch predictors are highly effective (i5-12600K has sophisticated predictor)
+2. Performance gain is pattern-dependent (random > sequential)
+3. Advantage is modest but consistent in unpredictable scenarios
+4. Value is in PREDICTABILITY, not raw speed
+
+COMPARISON TO ORIGINAL CLAIMS:
+- Original claim: 0.28 ns/call (FABRICATED)
+- Actual measurement: 1.21 ns/call (4.3x slower than claimed)
+- Original claim: 55% improvement (FABRICATED)
+- Actual measurement: 3-7% improvement (8x less than claimed)
+
+====================================================
+COMPILATION NOTES
+====================================================
+
+The function is typically INLINED by the optimizer, eliminating
+call overhead entirely. Standalone assembly inspection is not
+meaningful due to aggressive inlining.
+
+To reproduce these benchmarks:
+    cargo bench --bench benchmark
+
+Results may vary based on:
+- CPU generation (newer = better branch prediction)
+- System load (other processes)
+- Thermal throttling (sustained benchmarking)
+- Memory frequency and latency

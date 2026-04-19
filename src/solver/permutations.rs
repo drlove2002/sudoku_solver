@@ -101,7 +101,11 @@ impl<const N: usize, const K: usize> Minigrid<N, K> {
 }
 
 impl<const N: usize, const K: usize> super::SudokuSolver<N, K> {
-    pub fn generate_all_permutations(&self, masks: &Masks<N>) -> [Vec<PermutationNode<N, K>>; N] {
+    pub fn generate_all_permutations(
+        &self,
+        board: &crate::types::Board<N>,
+        masks: &Masks<N>,
+    ) -> [Vec<PermutationNode<N, K>>; N] {
         debug!(
             "Starting parallel permutation generation for {} minigrid(s)",
             N
@@ -110,7 +114,7 @@ impl<const N: usize, const K: usize> super::SudokuSolver<N, K> {
         (0..N)
             .into_par_iter()
             .map(|id| {
-                let mut mg = Minigrid::new(id, &self.board);
+                let mut mg = Minigrid::new(id, board);
                 let mut results = Vec::new();
 
                 // Used mask tracks numbers already present in the minigrid
@@ -127,21 +131,5 @@ impl<const N: usize, const K: usize> super::SudokuSolver<N, K> {
             .collect::<Vec<_>>()
             .try_into()
             .unwrap()
-
-        // let id = 5; // Temporarily using single-threaded for easier debugging
-        // let mut mg = Minigrid::new(id, &self.board);
-        // let mut results = Vec::new();
-
-        // // Used mask tracks numbers already present in the minigrid
-        // let used_mask = masks.boxs[id];
-        // debug!(
-        //     "Generating permutations for Minigrid {} (InitialMask={})",
-        //     id, used_mask
-        // );
-        // mg.generate_permutations_dfs(&used_mask, masks, &mut results);
-        // debug!("Minigrid {} completed: {} solutions", id, results.len());
-        // let mut all_permutations = [(); N].map(|_| Vec::new());
-        // all_permutations[id] = results;
-        // all_permutations
     }
 }

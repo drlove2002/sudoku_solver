@@ -2,7 +2,7 @@ use std::fmt;
 
 use crate::types::masks::DirtyMask;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PermutationNode<const N: usize, const K: usize> {
     cells: [u8; N],
     pub row_masks: [DirtyMask<N>; K],
