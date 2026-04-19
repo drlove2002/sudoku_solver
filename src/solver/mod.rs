@@ -42,15 +42,25 @@ pub struct SolveReport<const N: usize> {
 pub struct SudokuSolver<const N: usize, const K: usize> {
     pub board: Board<N>,
     pub limit: Option<usize>,
+    pub visualize: bool,
 }
 
 impl<const N: usize, const K: usize> SudokuSolver<N, K> {
     pub fn new(board: Board<N>) -> Self {
-        SudokuSolver { board, limit: None }
+        SudokuSolver {
+            board,
+            limit: None,
+            visualize: false,
+        }
     }
 
     pub fn with_limit(mut self, limit: usize) -> Self {
         self.limit = Some(limit);
+        self
+    }
+
+    pub fn with_visualize(mut self, visualize: bool) -> Self {
+        self.visualize = visualize;
         self
     }
 
@@ -112,6 +122,12 @@ impl<const N: usize, const K: usize> SudokuSolver<N, K> {
         }
 
         info!("✓ Compatibility edges built");
+
+        if self.visualize {
+            info!("Exporting graph JSON for visualization...");
+            std::fs::create_dir_all("results").unwrap_or_default();
+            graph.export_to_json("results/graph.json");
+        }
 
         info!("=== PHASE 4: GRAPH PRUNING ===");
         let phase_start = Instant::now();

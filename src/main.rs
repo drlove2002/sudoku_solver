@@ -9,7 +9,11 @@ fn main() {
     info!("Starting Sudoku Solver");
 
     let args: Vec<String> = std::env::args().collect();
-    let input_file = if args.len() > 1 {
+    
+    // Parse arguments
+    let visualize = args.contains(&"--visualize".to_string());
+    
+    let input_file = if args.len() > 1 && !args[1].starts_with("--") {
         &args[1]
     } else {
         "dataset/simple_test.txt"
@@ -37,6 +41,9 @@ fn main() {
     let mut solver = SudokuSolver::<N, K>::new(board);
     if cfg!(debug_assertions) {
         solver = solver.with_limit(1000);
+    }
+    if visualize {
+        solver = solver.with_visualize(true);
     }
     info!("Solver initialized");
 

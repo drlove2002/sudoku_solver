@@ -1,5 +1,4 @@
 pub mod dataset_parser;
-pub mod helper;
 mod log;
 mod solver;
 pub mod types;
