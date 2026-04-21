@@ -124,3 +124,5 @@ dmypy.json
 trace.log
 /perf
 /dataset/graph_data.json
+data/sudoku-3m.csv
+*3m.csv
