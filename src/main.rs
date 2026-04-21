@@ -13,15 +13,19 @@ fn main() {
     // Parse arguments
     let visualize = args.contains(&"--visualize".to_string());
     
-    let input_file = if args.len() > 1 && !args[1].starts_with("--") {
+    let input_str = if args.len() > 1 && !args[1].starts_with("--") {
         &args[1]
     } else {
         "dataset/simple_test.txt"
     };
 
-    let content = std::fs::read_to_string(input_file)
-        .unwrap_or_else(|_| panic!("Failed to read {}", input_file));
-    info!("Read input file: {}", input_file);
+    let content = if std::path::Path::new(input_str).exists() {
+        info!("Read input file: {}", input_str);
+        std::fs::read_to_string(input_str).unwrap_or_else(|_| panic!("Failed to read {}", input_str))
+    } else {
+        info!("Parsing input as direct puzzle string");
+        input_str.to_string()
+    };
 
     // Clean up content (remove spaces, newlines, tabs)
     let cleaned_content: String = content
