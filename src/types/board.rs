@@ -86,7 +86,15 @@ impl<const N: usize> fmt::Display for Board<N> {
                 if j > 0 && j % k == 0 {
                     write!(f, "| ")?;
                 }
-                write!(f, "{} ", self.cells[i][j])?;
+                let val = self.cells[i][j];
+                if val == 0 {
+                    write!(f, ". ")?;
+                } else if N > 9 {
+                    let c = (val - 1 + b'A') as char;
+                    write!(f, "{} ", c)?;
+                } else {
+                    write!(f, "{} ", val)?;
+                }
             }
             writeln!(f)?;
         }

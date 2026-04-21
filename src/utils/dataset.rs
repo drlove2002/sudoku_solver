@@ -62,22 +62,37 @@ pub fn stratified_sample(
 }
 
 pub fn parse_puzzle_string(puzzle_str: &str) -> Result<Vec<u8>, String> {
-    if puzzle_str.len() != 81 {
+    let len = puzzle_str.len();
+    if len != 81 && len != 256 && len != 625 {
         return Err(format!(
-            "Invalid puzzle length: expected 81, got {}",
-            puzzle_str.len()
+            "Invalid puzzle length: expected 81, 256, or 625, got {}",
+            len
         ));
     }
+
+    let is_9x9 = len == 81;
 
     puzzle_str
         .chars()
         .map(|c| {
-            if c == '.' {
-                Ok(0) // Kaggle format uses '.' for empty cells
-            } else {
+            if c == '.' || c == '0' {
+                Ok(0) // Format uses '.' or '0' for empty cells
+            } else if is_9x9 {
                 c.to_digit(10)
                     .map(|d| d as u8)
-                    .ok_or_else(|| format!("Invalid character: {}", c))
+                    .ok_or_else(|| format!("Invalid character for 9x9: {}", c))
+            } else {
+                if c.is_ascii_alphabetic() {
+                    let val = c.to_ascii_uppercase() as u8 - b'A' + 1;
+                    let max_val = if len == 256 { 16 } else { 25 };
+                    if val <= max_val {
+                        Ok(val)
+                    } else {
+                        Err(format!("Character '{}' out of range for {}x{}", c, max_val, max_val))
+                    }
+                } else {
+                    Err(format!("Invalid character for >9x9 (expected alphabet): {}", c))
+                }
             }
         })
         .collect()
