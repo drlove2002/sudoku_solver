@@ -5,19 +5,19 @@ pub mod pruning;
 pub mod report;
 
 use crate::types::{
-    graph::{Graph, PermutationNode},
-    masks::Masks,
     Board,
+    graph::{GeneratedMinigrid, Graph},
+    masks::Masks,
 };
 use extraction::Extractor;
 use log::{debug, info};
-use pruning::Pruner;
-use report::{PuzzleClass, SolveReport, SolveStats};
+use pruning::{PruneResult, Pruner};
+use report::{PuzzleClass, SearchMode, SolveReport, SolveStats};
 use std::time::Instant;
 
 pub struct SudokuSolver<const N: usize, const K: usize> {
     pub board: Board<N>,
-    pub limit: Option<usize>,
+    pub search_mode: SearchMode,
     pub visualize: bool,
 }
 
@@ -25,13 +25,18 @@ impl<const N: usize, const K: usize> SudokuSolver<N, K> {
     pub fn new(board: Board<N>) -> Self {
         SudokuSolver {
             board,
-            limit: None,
+            search_mode: SearchMode::EnumerateAll,
             visualize: false,
         }
     }
 
     pub fn with_limit(mut self, limit: usize) -> Self {
-        self.limit = Some(limit);
+        self.search_mode = SearchMode::EnumerateUpTo(limit);
+        self
+    }
+
+    pub fn with_search_mode(mut self, mode: SearchMode) -> Self {
+        self.search_mode = mode;
         self
     }
 
@@ -48,6 +53,21 @@ impl<const N: usize, const K: usize> SudokuSolver<N, K> {
             .collect()
     }
 
+    pub fn solve_one(&self) -> Option<Board<N>> {
+        self.solve_bounded(SearchMode::First)
+            .into_iter()
+            .next()
+            .map(|solution| solution.board)
+    }
+
+    pub fn classify_up_to_two(&self) -> PuzzleClass {
+        match self.solve_bounded(SearchMode::Classify).len() {
+            0 => PuzzleClass::Unsolvable,
+            1 => PuzzleClass::Unique,
+            _ => PuzzleClass::Ambiguous(2),
+        }
+    }
+
     pub fn solve_with_stats(&self) -> SolveReport<N> {
         let total_start = Instant::now();
 
@@ -61,22 +81,27 @@ impl<const N: usize, const K: usize> SudokuSolver<N, K> {
         info!("=== PHASE 1.5: HIDDEN SINGLE DEDUCTION ===");
         let phase_start = Instant::now();
         let mut heuristic_board = self.board;
-        let cells_filled = heuristics::apply_hidden_singles::<N, K>(&mut heuristic_board, &mut masks);
+        let cells_filled =
+            heuristics::apply_hidden_singles::<N, K>(&mut heuristic_board, &mut masks);
         let heuristic_time_ns = phase_start.elapsed().as_nanos();
-        info!("✓ Filled {} deterministic cells via Hidden Singles", cells_filled);
+        info!(
+            "✓ Filled {} deterministic cells via Hidden Singles",
+            cells_filled
+        );
 
         info!("=== PHASE 2: MINIGRID PERMUTATION GENERATION ===");
         let phase_start = Instant::now();
-        let permutations: [Vec<PermutationNode<N, K>>; N] = permutations::generate_all_permutations(&heuristic_board, &masks);
+        let permutations: [GeneratedMinigrid<N, K>; N] =
+            permutations::generate_all_permutations(&heuristic_board, &masks);
         let permutation_time_ns = phase_start.elapsed().as_nanos();
-        let permutation_counts = std::array::from_fn(|idx| permutations[idx].len());
+        let permutation_counts = std::array::from_fn(|idx| permutations[idx].nodes.len());
         let total_invocations = count_dependent_pair_checks(&permutations);
 
         // Print permutation counts and details
         for (idx, perms) in permutations.iter().enumerate() {
-            info!("Minigrid {}: {} permutation(s)", idx, perms.len());
-            for (p_idx, perm) in perms.iter().enumerate() {
-                debug!("  M-{}-{}: {}", idx, p_idx, perm);
+            info!("Minigrid {}: {} permutation(s)", idx, perms.nodes.len());
+            for (p_idx, cells) in perms.payloads.iter().enumerate() {
+                debug!("  M-{}-{}: {}", idx, p_idx, format_minigrid::<N, K>(cells));
             }
         }
 
@@ -108,10 +133,10 @@ impl<const N: usize, const K: usize> SudokuSolver<N, K> {
         info!("=== PHASE 4: GRAPH PRUNING ===");
         let phase_start = Instant::now();
         let mut pruner = Pruner::new(&mut graph);
-        if let Some(limit) = self.limit {
-            pruner = pruner.with_limit(limit);
-        }
-        let removed = pruner.run();
+        let PruneResult {
+            removed_total: removed,
+            configurations,
+        } = pruner.run();
         let pruning_time_ns = phase_start.elapsed().as_nanos();
         let final_perms = graph.total_permutations();
         let pruned_edge_count = graph.total_edges();
@@ -122,11 +147,8 @@ impl<const N: usize, const K: usize> SudokuSolver<N, K> {
 
         info!("=== PHASE 5: SOLUTION EXTRACTION ===");
         let phase_start = Instant::now();
-        let mut extractor = Extractor::new(&graph);
-        if let Some(limit) = self.limit {
-            extractor = extractor.with_limit(limit);
-        }
-        let solutions = extractor.run();
+        let extractor = Extractor::new(&graph).with_mode(self.search_mode);
+        let solutions = extractor.run_with_configurations(configurations);
         let extraction_time_ns = phase_start.elapsed().as_nanos();
 
         // Classify puzzle
@@ -176,21 +198,51 @@ impl<const N: usize, const K: usize> SudokuSolver<N, K> {
             },
         }
     }
+
+    fn solve_bounded(&self, mode: SearchMode) -> Vec<report::Solution<N>> {
+        let mut masks = Masks::<N>::default();
+        masks.generate(&self.board);
+
+        let mut heuristic_board = self.board;
+        heuristics::apply_hidden_singles::<N, K>(&mut heuristic_board, &mut masks);
+
+        let permutations: [GeneratedMinigrid<N, K>; N] =
+            permutations::generate_all_permutations(&heuristic_board, &masks);
+        let mut graph = Graph::new(permutations);
+        graph.create_edges();
+
+        Pruner::new(&mut graph).run_local();
+        Extractor::new(&graph).with_mode(mode).run()
+    }
 }
 
 fn count_dependent_pair_checks<const N: usize, const K: usize>(
-    perms: &[Vec<PermutationNode<N, K>>; N],
+    perms: &[GeneratedMinigrid<N, K>; N],
 ) -> usize {
-    let graph = Graph::<K, N>::new(std::array::from_fn(|idx| perms[idx].clone()));
-
     let mut total = 0;
     for i in 0..N {
         for j in (i + 1)..N {
-            if graph.relationship(i, j) != crate::types::graph::Relation::Not {
-                total += perms[i].len() * perms[j].len();
+            if Graph::<K, N>::relationship_between(i, j) != crate::types::graph::Relation::Not {
+                total += perms[i].nodes.len() * perms[j].nodes.len();
             }
         }
     }
 
     total
+}
+
+fn format_minigrid<const N: usize, const K: usize>(cells: &[u8; N]) -> String {
+    let mut out = String::from("[");
+    for (i, val) in cells.iter().enumerate() {
+        if i > 0 {
+            if i % K == 0 {
+                out.push_str(" | ");
+            } else {
+                out.push(' ');
+            }
+        }
+        out.push_str(&val.to_string());
+    }
+    out.push(']');
+    out
 }

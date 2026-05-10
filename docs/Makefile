@@ -1,6 +1,6 @@
 # Makefile for LaTeX documentation
 
-DOCS = minigrid_relationship sudoku_solver_complete
+DOCS = minigrid_relationship sudoku_solver_complete sudoku_solver_pseudocode
 
 .PHONY: all clean cleanall
 

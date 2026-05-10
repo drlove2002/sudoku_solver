@@ -23,16 +23,40 @@ fn run_puzzle<const N: usize, const K: usize>(parsed_cells: &[u8], visualize: bo
     info!("Solver initialized");
 
     let report = solver.solve_with_stats();
-    info!("Solving completed - found {} solution(s)", report.solutions.len());
-    
+    info!(
+        "Solving completed - found {} solution(s)",
+        report.solutions.len()
+    );
+
     println!("\n=== PERFORMANCE TIMINGS ===");
-    println!("Mask Init:       {:.2} ms", report.stats.mask_init_time_ns as f64 / 1_000_000.0);
-    println!("Heuristics:      {:.2} ms", report.stats.heuristic_time_ns as f64 / 1_000_000.0);
-    println!("Permutations:    {:.2} ms", report.stats.permutation_time_ns as f64 / 1_000_000.0);
-    println!("Edge Building:   {:.2} ms", report.stats.edge_build_time_ns as f64 / 1_000_000.0);
-    println!("Pruning:         {:.2} ms", report.stats.pruning_time_ns as f64 / 1_000_000.0);
-    println!("Extraction:      {:.2} ms", report.stats.extraction_time_ns as f64 / 1_000_000.0);
-    println!("Total Time:      {:.2} ms", report.stats.total_time_ns as f64 / 1_000_000.0);
+    println!(
+        "Mask Init:       {:.2} ms",
+        report.stats.mask_init_time_ns as f64 / 1_000_000.0
+    );
+    println!(
+        "Heuristics:      {:.2} ms",
+        report.stats.heuristic_time_ns as f64 / 1_000_000.0
+    );
+    println!(
+        "Permutations:    {:.2} ms",
+        report.stats.permutation_time_ns as f64 / 1_000_000.0
+    );
+    println!(
+        "Edge Building:   {:.2} ms",
+        report.stats.edge_build_time_ns as f64 / 1_000_000.0
+    );
+    println!(
+        "Pruning:         {:.2} ms",
+        report.stats.pruning_time_ns as f64 / 1_000_000.0
+    );
+    println!(
+        "Extraction:      {:.2} ms",
+        report.stats.extraction_time_ns as f64 / 1_000_000.0
+    );
+    println!(
+        "Total Time:      {:.2} ms",
+        report.stats.total_time_ns as f64 / 1_000_000.0
+    );
 }
 
 fn main() {

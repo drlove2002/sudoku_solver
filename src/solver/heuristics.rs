@@ -1,6 +1,6 @@
-use crate::types::{masks::Masks, Board};
+use crate::types::{Board, masks::Masks};
 
-/// Applies the "Hidden Single" deduction rule iteratively until no more cells can be filled.
+/// Applies the "Hidden Single" deduction rule until no more cells can be filled.
 /// Returns the total number of cells filled.
 pub fn apply_hidden_singles<const N: usize, const K: usize>(
     board: &mut Board<N>,
@@ -90,17 +90,35 @@ pub fn apply_hidden_singles<const N: usize, const K: usize>(
 }
 
 /// Helper to update the `Masks` struct efficiently after a single digit is placed
-fn update_masks<const N: usize, const K: usize>(masks: &mut Masks<N>, r: usize, c: usize, d: usize) {
+fn update_masks<const N: usize, const K: usize>(
+    masks: &mut Masks<N>,
+    r: usize,
+    c: usize,
+    d: usize,
+) {
     let b = Board::<N>::box_idx(r, c);
     masks.rows[r].dirty_set(d);
     masks.cols[c].dirty_set(d);
     masks.boxs[b].dirty_set(d);
 
-    // Recompute conflict masks for the entire board
-    for i in 0..N {
-        for j in 0..N {
-            let bx = Board::<N>::box_idx(i, j);
-            masks.conflict[i][j] = masks.rows[i] | masks.cols[j] | masks.boxs[bx];
+    for col in 0..N {
+        let bx = Board::<N>::box_idx(r, col);
+        masks.conflict[r][col] = masks.rows[r] | masks.cols[col] | masks.boxs[bx];
+    }
+
+    for row in 0..N {
+        let bx = Board::<N>::box_idx(row, c);
+        masks.conflict[row][c] = masks.rows[row] | masks.cols[c] | masks.boxs[bx];
+    }
+
+    let base_r = (b / K) * K;
+    let base_c = (b % K) * K;
+    for i in 0..K {
+        for j in 0..K {
+            let row = base_r + i;
+            let col = base_c + j;
+            let bx = Board::<N>::box_idx(row, col);
+            masks.conflict[row][col] = masks.rows[row] | masks.cols[col] | masks.boxs[bx];
         }
     }
 }

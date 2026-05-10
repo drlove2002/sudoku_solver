@@ -5,5 +5,5 @@ pub mod masks;
 pub mod minigrid;
 
 pub use board::Board;
-pub use minigrid::Minigrid;
 pub use masks::Masks;
+pub use minigrid::Minigrid;

@@ -1,5 +1,24 @@
 use crate::types::Board;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SearchMode {
+    First,
+    Classify,
+    EnumerateAll,
+    EnumerateUpTo(usize),
+}
+
+impl SearchMode {
+    pub fn solution_cap(self) -> Option<usize> {
+        match self {
+            SearchMode::First => Some(1),
+            SearchMode::Classify => Some(2),
+            SearchMode::EnumerateAll => None,
+            SearchMode::EnumerateUpTo(limit) => Some(limit),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Solution<const N: usize> {
     pub board: Board<N>,
@@ -11,6 +30,24 @@ pub enum PuzzleClass {
     Unsolvable,
     Unique,
     Ambiguous(usize),
+}
+
+impl PuzzleClass {
+    pub fn coarse_label(&self) -> &'static str {
+        match self {
+            PuzzleClass::Unsolvable => "Unsolvable",
+            PuzzleClass::Unique => "Unique",
+            PuzzleClass::Ambiguous(_) => "Ambiguous",
+        }
+    }
+
+    pub fn detail_label(&self) -> String {
+        match self {
+            PuzzleClass::Unsolvable => "Unsolvable".to_string(),
+            PuzzleClass::Unique => "Unique".to_string(),
+            PuzzleClass::Ambiguous(n) => format!("Ambiguous({n})"),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]

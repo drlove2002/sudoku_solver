@@ -81,18 +81,22 @@ pub fn parse_puzzle_string(puzzle_str: &str) -> Result<Vec<u8>, String> {
                 c.to_digit(10)
                     .map(|d| d as u8)
                     .ok_or_else(|| format!("Invalid character for 9x9: {}", c))
-            } else {
-                if c.is_ascii_alphabetic() {
-                    let val = c.to_ascii_uppercase() as u8 - b'A' + 1;
-                    let max_val = if len == 256 { 16 } else { 25 };
-                    if val <= max_val {
-                        Ok(val)
-                    } else {
-                        Err(format!("Character '{}' out of range for {}x{}", c, max_val, max_val))
-                    }
+            } else if c.is_ascii_alphabetic() {
+                let val = c.to_ascii_uppercase() as u8 - b'A' + 1;
+                let max_val = if len == 256 { 16 } else { 25 };
+                if val <= max_val {
+                    Ok(val)
                 } else {
-                    Err(format!("Invalid character for >9x9 (expected alphabet): {}", c))
+                    Err(format!(
+                        "Character '{}' out of range for {}x{}",
+                        c, max_val, max_val
+                    ))
                 }
+            } else {
+                Err(format!(
+                    "Invalid character for >9x9 (expected alphabet): {}",
+                    c
+                ))
             }
         })
         .collect()

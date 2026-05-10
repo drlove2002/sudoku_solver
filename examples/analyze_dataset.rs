@@ -1,4 +1,4 @@
-use solver::{SudokuSolver, utils::dataset::parse_puzzle_string, init_logger, types::Board};
+use solver::{SudokuSolver, init_logger, types::Board, utils::dataset::parse_puzzle_string};
 use std::{env, fs, path::Path};
 
 #[derive(Debug, Clone)]

@@ -53,7 +53,7 @@ impl<const K: usize, const N: usize> Graph<K, N> {
 
         // Collect all nodes and edges
         for (minigrid_idx, minigrid) in self.minigrids.iter().enumerate() {
-            for (perm_idx, node) in minigrid.iter().enumerate() {
+            for (perm_idx, _) in minigrid.iter().enumerate() {
                 let node_id = format!("mg{}_p{}", minigrid_idx, perm_idx);
 
                 // Add node data
@@ -61,18 +61,20 @@ impl<const K: usize, const N: usize> Graph<K, N> {
                     id: node_id.clone(),
                     minigrid: minigrid_idx,
                     perm_id: perm_idx,
-                    cells: node.cells().to_vec(),
+                    cells: self.permutation_cells(minigrid_idx, perm_idx).to_vec(),
                     board_position: Self::minigrid_position(minigrid_idx),
                 });
 
                 // Add edges (only once, since it's undirected)
-                for &(target_mg, target_perm) in &node.compatible {
-                    // Only add edge if current minigrid is smaller to avoid duplicates
-                    if minigrid_idx < target_mg {
-                        edges.push(EdgeData {
-                            source: node_id.clone(),
-                            target: format!("mg{}_p{}", target_mg, target_perm),
-                        });
+                for target_mg in (minigrid_idx + 1)..N {
+                    if let Some(target_set) = self.compatible_set(minigrid_idx, perm_idx, target_mg)
+                    {
+                        for target_perm in target_set.iter_ones() {
+                            edges.push(EdgeData {
+                                source: node_id.clone(),
+                                target: format!("mg{}_p{}", target_mg, target_perm),
+                            });
+                        }
                     }
                 }
             }

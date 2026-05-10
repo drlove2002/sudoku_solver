@@ -126,3 +126,19 @@ trace.log
 /dataset/graph_data.json
 data/sudoku-3m.csv
 *3m.csv
+
+# Local scratch helper scripts
+/compare_*.py
+/find_duplicate.py
+/fix_*.py
+/parse_*.py
+/process_correct_board.py
+/remove_hints.*
+/rewrite_board.py
+/test_convert.py
+/new_puzzle_*.txt
+
+# LaTeX build artifacts
+docs/*.aux
+docs/*.log
+docs/*.out

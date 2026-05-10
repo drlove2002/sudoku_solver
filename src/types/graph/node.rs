@@ -1,37 +1,24 @@
-use std::fmt;
-
 use crate::types::bitstring::DirtyMask;
+
+pub type PermId = u32;
 
 #[derive(Debug, Clone)]
 pub struct PermutationNode<const N: usize, const K: usize> {
-    cells: [u8; N],
+    payload_idx: PermId,
     pub row_masks: [DirtyMask<N>; K],
     pub col_masks: [DirtyMask<N>; K],
-    pub compatible: Vec<(usize, usize)>, // (Minigrid id, Permutation id)
-}
-
-impl<const N: usize, const K: usize> fmt::Display for PermutationNode<N, K> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "[")?;
-        for (i, val) in self.cells.iter().enumerate() {
-            if i > 0 {
-                if i % K == 0 {
-                    write!(f, " | ")?;
-                } else {
-                    write!(f, " ")?;
-                }
-            }
-            write!(f, "{}", val)?;
-        }
-        write!(f, "]")
-    }
 }
 
 impl<const N: usize, const K: usize> PermutationNode<N, K> {
-    pub fn cells(&self) -> &[u8; N] {
-        &self.cells
+    pub fn payload_idx(&self) -> PermId {
+        self.payload_idx
     }
-    pub fn from_minigrid(cells: [u8; N]) -> Self {
+
+    pub fn set_payload_idx(&mut self, payload_idx: PermId) {
+        self.payload_idx = payload_idx;
+    }
+
+    pub fn from_minigrid(cells: &[u8; N], payload_idx: PermId) -> Self {
         let mut row_masks = [DirtyMask::default(); K];
         let mut col_masks = [DirtyMask::default(); K];
 
@@ -44,10 +31,9 @@ impl<const N: usize, const K: usize> PermutationNode<N, K> {
         }
 
         Self {
-            cells,
+            payload_idx,
             row_masks,
             col_masks,
-            compatible: Vec::new(),
         }
     }
 

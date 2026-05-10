@@ -1,7 +1,7 @@
 use rand::rng;
 use rand::seq::IndexedRandom;
 use rand::seq::SliceRandom;
-use solver::utils::dataset::{parse_csv, stratified_sample, SudokuPuzzle};
+use solver::utils::dataset::{SudokuPuzzle, parse_csv, stratified_sample};
 use std::fs::File;
 use std::io::Write;
 
@@ -49,12 +49,17 @@ fn write_datasets(difficulty: &str, puzzles: &[SudokuPuzzle]) {
             .enumerate()
             .filter_map(|(i, &c)| if c != '.' && c != '0' { Some(i) } else { None })
             .collect();
-        
+
         clue_indices.shuffle(&mut rng_thread);
         for &idx in clue_indices.iter().take(3) {
             ambiguous_chars[idx] = '.';
         }
-        writeln!(ambiguous_file, "{}", ambiguous_chars.iter().collect::<String>()).unwrap();
+        writeln!(
+            ambiguous_file,
+            "{}",
+            ambiguous_chars.iter().collect::<String>()
+        )
+        .unwrap();
 
         // Write unsolvable puzzle (find an empty cell, place an invalid digit that breaks global state)
         // To ensure it passes Phase 1 (masks), we pick a digit that isn't in its row/col/box.
@@ -71,18 +76,24 @@ fn write_datasets(difficulty: &str, puzzles: &[SudokuPuzzle]) {
         for idx in empty_indices {
             let row = idx / 9;
             let col = idx % 9;
-            
+
             // Collect used digits in this row, col, and 3x3 box
             let mut used = [false; 10];
             for i in 0..9 {
                 // Row
-                if let Some(d) = none_chars[row * 9 + i].to_digit(10) { used[d as usize] = true; }
+                if let Some(d) = none_chars[row * 9 + i].to_digit(10) {
+                    used[d as usize] = true;
+                }
                 // Col
-                if let Some(d) = none_chars[i * 9 + col].to_digit(10) { used[d as usize] = true; }
+                if let Some(d) = none_chars[i * 9 + col].to_digit(10) {
+                    used[d as usize] = true;
+                }
                 // Box
                 let r = (row / 3) * 3 + (i / 3);
                 let c = (col / 3) * 3 + (i % 3);
-                if let Some(d) = none_chars[r * 9 + c].to_digit(10) { used[d as usize] = true; }
+                if let Some(d) = none_chars[r * 9 + c].to_digit(10) {
+                    used[d as usize] = true;
+                }
             }
 
             // The 'solution' contains the *correct* digit for this empty cell.
@@ -112,9 +123,13 @@ fn write_datasets(difficulty: &str, puzzles: &[SudokuPuzzle]) {
                 .filter_map(|(i, &c)| if c != '.' && c != '0' { Some(i) } else { None })
                 .collect();
             clue_indices.shuffle(&mut rng_thread);
-            none_chars[clue_indices[0]] = if none_chars[clue_indices[0]] == '9' { '1' } else { '9' };
+            none_chars[clue_indices[0]] = if none_chars[clue_indices[0]] == '9' {
+                '1'
+            } else {
+                '9'
+            };
         }
-        
+
         writeln!(none_file, "{}", none_chars.iter().collect::<String>()).unwrap();
     }
 }

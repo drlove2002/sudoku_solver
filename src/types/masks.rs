@@ -43,7 +43,16 @@ impl<const N: usize> Masks<N> {
                             "Conflict detected! self.rows={}, self.cols={}, self.boxs={}",
                             self.rows[r], self.cols[c], self.boxs[b]
                         );
-                        panic!("Invalid board: duplicate value found");
+                        panic!(
+                            "Invalid board: duplicate value found at r={}, c={}, box={}, val={}. rows_dirty={}, cols_dirty={}, boxs_dirty={}",
+                            r,
+                            c,
+                            b,
+                            val,
+                            self.rows[r].is_dirty(val),
+                            self.cols[c].is_dirty(val),
+                            self.boxs[b].is_dirty(val)
+                        );
                     }
 
                     self.rows[r].dirty_set(val);

@@ -2,6 +2,11 @@ use crate::solver::extraction::Search;
 use crate::types::graph::Graph;
 use log::{debug, info};
 
+pub struct PruneResult<const N: usize> {
+    pub removed_total: usize,
+    pub configurations: Vec<[usize; N]>,
+}
+
 /// Prune permutations that do not participate in any globally consistent board.
 ///
 /// This performs an exact global support search (finding all valid configurations)
@@ -9,29 +14,21 @@ use log::{debug, info};
 /// It then rebuilds the graph using only those supported nodes.
 pub struct Pruner<'a, const K: usize, const N: usize> {
     graph: &'a mut Graph<K, N>,
-    limit: Option<usize>,
 }
 
 impl<'a, const K: usize, const N: usize> Pruner<'a, K, N> {
     pub fn new(graph: &'a mut Graph<K, N>) -> Self {
-        Self { graph, limit: None }
+        Self { graph }
     }
 
-    pub fn with_limit(mut self, limit: usize) -> Self {
-        self.limit = Some(limit);
-        self
-    }
-
-    pub fn run(&mut self) -> usize {
+    pub fn run(&mut self) -> PruneResult<N> {
         let original_counts: [usize; N] =
             std::array::from_fn(|mg_id| self.graph.permutation_count(mg_id));
 
+        self.run_local();
+
         // Run the exact global search to find all valid configurations
-        let mut search = Search::new(self.graph);
-        if let Some(limit) = self.limit {
-            search = search.with_limit(limit);
-        }
-        let configurations = search.all();
+        let configurations = Search::new(self.graph).all();
         let solution_count = configurations.len();
 
         // Mark permutations that are used in at least one solution
@@ -72,14 +69,96 @@ impl<'a, const K: usize, const N: usize> Pruner<'a, K, N> {
             );
         }
 
+        let remap: [Vec<Option<usize>>; N] = std::array::from_fn(|mg_id| {
+            let mut mapping = vec![None; self.graph.permutation_count(mg_id)];
+            for (new_idx, &old_idx) in keep[mg_id].iter().enumerate() {
+                mapping[old_idx] = Some(new_idx);
+            }
+            mapping
+        });
+
         self.graph.retain_permutations(&keep);
+
+        let configurations = configurations
+            .into_iter()
+            .map(|config| {
+                std::array::from_fn(|mg_id| {
+                    remap[mg_id][config[mg_id]]
+                        .expect("exact search configurations must survive support pruning")
+                })
+            })
+            .collect();
 
         info!(
             "Pruning complete: removed {} permutation(s) across {} full configuration(s)",
             removed_total, solution_count
         );
 
-        removed_total
+        PruneResult {
+            removed_total,
+            configurations,
+        }
+    }
+
+    pub fn run_local(&mut self) -> usize {
+        let original_total = self.graph.total_permutations();
+        let local_keep = self.local_support_keep();
+        self.graph.retain_permutations(&local_keep);
+        original_total - self.graph.total_permutations()
+    }
+
+    fn local_support_keep(&self) -> [Vec<usize>; N] {
+        let mut alive: [Vec<bool>; N] =
+            std::array::from_fn(|mg_id| vec![true; self.graph.permutation_count(mg_id)]);
+        let mut changed = true;
+
+        while changed {
+            changed = false;
+
+            for mg_id in 0..N {
+                for perm_id in 0..self.graph.permutation_count(mg_id) {
+                    if !alive[mg_id][perm_id] {
+                        continue;
+                    }
+
+                    let mut supported = true;
+                    for (other_mg, other_alive) in alive.iter().enumerate() {
+                        if self.graph.relationship(mg_id, other_mg)
+                            == crate::types::graph::Relation::Not
+                        {
+                            continue;
+                        }
+
+                        let compatible = self
+                            .graph
+                            .compatible_set(mg_id, perm_id, other_mg)
+                            .expect("related minigrids must have compatibility data");
+
+                        let has_live_neighbor = compatible
+                            .iter_ones()
+                            .any(|other_perm| other_alive[other_perm]);
+
+                        if !has_live_neighbor {
+                            supported = false;
+                            break;
+                        }
+                    }
+
+                    if !supported {
+                        alive[mg_id][perm_id] = false;
+                        changed = true;
+                    }
+                }
+            }
+        }
+
+        std::array::from_fn(|mg_id| {
+            alive[mg_id]
+                .iter()
+                .enumerate()
+                .filter_map(|(perm_id, &is_alive)| is_alive.then_some(perm_id))
+                .collect()
+        })
     }
 }
 
@@ -88,7 +167,7 @@ mod tests {
     use super::*;
     use crate::{
         SudokuSolver,
-        types::{graph::Graph, masks::Masks, Board},
+        types::{Board, graph::Graph, masks::Masks},
         utils::dataset::parse_puzzle_string,
     };
 
@@ -106,7 +185,8 @@ mod tests {
         let solver = SudokuSolver::<N, K>::new(board);
         let mut masks = Masks::<N>::default();
         masks.generate(&solver.board);
-        let permutations = crate::solver::permutations::generate_all_permutations(&solver.board, &masks);
+        let permutations =
+            crate::solver::permutations::generate_all_permutations(&solver.board, &masks);
         let mut graph = Graph::new(permutations);
         graph.create_edges();
         graph
@@ -118,15 +198,19 @@ mod tests {
             "...81.....2........1.9..7...7..25.934.2............5...975.....563.....4......68.";
         let mut graph = graph_from_puzzle(puzzle);
 
-        let removed = Pruner::new(&mut graph).run();
+        let result = Pruner::new(&mut graph).run();
 
         assert!(
-            removed > 0,
+            result.removed_total > 0,
             "expected unsupported permutations to be pruned"
         );
         assert!(
             graph.total_permutations() > 0,
             "valid puzzle was over-pruned"
+        );
+        assert!(
+            !result.configurations.is_empty(),
+            "expected exact pruning to preserve at least one full configuration"
         );
     }
 }

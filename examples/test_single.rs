@@ -1,4 +1,4 @@
-use solver::{SudokuSolver, utils::dataset::parse_puzzle_string, init_logger, types::Board};
+use solver::{SudokuSolver, init_logger, types::Board, utils::dataset::parse_puzzle_string};
 
 const N: usize = 9;
 const K: usize = 3;
@@ -11,8 +11,7 @@ fn main() {
         "...81.....2........1.9..7...7..25.934.2............5...975.....563.....4......68.";
 
     // Parse Kaggle format
-    let cells_vec =
-        parse_puzzle_string(puzzle_str).expect("Failed to parse puzzle");
+    let cells_vec = parse_puzzle_string(puzzle_str).expect("Failed to parse puzzle");
 
     // Convert to 2D array
     let mut cells = [[0u8; N]; N];

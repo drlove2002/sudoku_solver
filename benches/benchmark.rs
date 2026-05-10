@@ -1,5 +1,5 @@
 use criterion::{Criterion, criterion_group, criterion_main};
-use solver::types::graph::{Graph, PermutationNode, Relation};
+use solver::types::graph::{GeneratedMinigrid, Graph, Relation};
 use std::hint::black_box;
 
 /// Branch-free implementation (current production code)
@@ -217,7 +217,14 @@ fn bench_graph_api(c: &mut Criterion) {
     const N: usize = 9;
 
     // Create minimal graph for testing
-    let graph: Graph<K, N> = Graph::new([const { Vec::<PermutationNode<N, K>>::new() }; N]);
+    let graph: Graph<K, N> = Graph::new(
+        [const {
+            GeneratedMinigrid::<N, K> {
+                nodes: Vec::new(),
+                payloads: Vec::new(),
+            }
+        }; N],
+    );
 
     let pairs: Vec<(usize, usize)> = (0..1000).map(|i| ((i * 7) % N, (i * 13) % N)).collect();
 

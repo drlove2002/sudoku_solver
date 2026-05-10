@@ -1,4 +1,6 @@
-use solver::{SudokuSolver, utils::dataset::parse_puzzle_string, types::Board};
+use solver::{
+    SudokuSolver, solver::report::PuzzleClass, types::Board, utils::dataset::parse_puzzle_string,
+};
 
 const N: usize = 9;
 const K: usize = 3;
@@ -48,6 +50,43 @@ fn solves_first_easy_sample() {
 #[test]
 fn solves_first_medium_sample() {
     assert_solver_finds_valid_solution("data/sample_medium.txt");
+}
+
+#[test]
+fn solve_one_returns_a_valid_solution() {
+    let board = board_from_kaggle_line(&first_puzzle("data/sample_easy.txt"));
+    let solver = SudokuSolver::<N, K>::new(board);
+    let solution = solver.solve_one().expect("expected at least one solution");
+
+    assert!(solution.is_valid(), "bounded solve returned invalid board");
+}
+
+#[test]
+fn classify_up_to_two_detects_unique_easy_sample() {
+    let board = board_from_kaggle_line(&first_puzzle("data/sample_easy.txt"));
+    let solver = SudokuSolver::<N, K>::new(board);
+
+    assert_eq!(solver.classify_up_to_two(), PuzzleClass::Unique);
+}
+
+#[test]
+fn invalid_board_fails_local_validity_check() {
+    let board = board_from_kaggle_line(
+        "11...............................................................................",
+    );
+
+    assert!(
+        !board.is_valid(),
+        "duplicate givens should fail local validity"
+    );
+}
+
+#[test]
+fn classify_up_to_two_detects_unsatisfiable_none_sample() {
+    let board = board_from_kaggle_line(&first_puzzle("data/none_easy.txt"));
+    let solver = SudokuSolver::<N, K>::new(board);
+
+    assert_eq!(solver.classify_up_to_two(), PuzzleClass::Unsolvable);
 }
 
 #[test]
