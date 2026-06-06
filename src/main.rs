@@ -57,6 +57,34 @@ fn run_puzzle<const N: usize, const K: usize>(parsed_cells: &[u8], visualize: bo
         "Total Time:      {:.2} ms",
         report.stats.total_time_ns as f64 / 1_000_000.0
     );
+
+    fn mem_str(bytes: u64) -> String {
+        if bytes >= 1_048_576 {
+            format!("{:.1} MB", bytes as f64 / 1_048_576.0)
+        } else if bytes >= 1024 {
+            format!("{:.1} KB", bytes as f64 / 1024.0)
+        } else {
+            format!("{} B", bytes)
+        }
+    }
+
+    println!("\n=== MEMORY FOOTPRINT ===");
+    println!(
+        "Masks + Board:   {}",
+        mem_str(report.stats.masks_memory_bytes)
+    );
+    println!(
+        "Permutations:    {}",
+        mem_str(report.stats.permutation_memory_bytes)
+    );
+    println!(
+        "Graph:           {}",
+        mem_str(report.stats.graph_memory_bytes)
+    );
+    println!(
+        "Post-prune:      {}",
+        mem_str(report.stats.post_prune_memory_bytes)
+    );
 }
 
 fn main() {

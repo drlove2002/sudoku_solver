@@ -6,7 +6,7 @@ pub mod report;
 
 use crate::types::{
     Board,
-    graph::{GeneratedMinigrid, Graph},
+    graph::{GeneratedMinigrid, Graph, PermutationNode},
     masks::Masks,
 };
 use extraction::Extractor;
@@ -96,6 +96,7 @@ impl<const N: usize, const K: usize> SudokuSolver<N, K> {
         let permutation_time_ns = phase_start.elapsed().as_nanos();
         let permutation_counts = std::array::from_fn(|idx| permutations[idx].nodes.len());
         let total_invocations = count_dependent_pair_checks(&permutations);
+        let perm_mem = permutation_memory::<N, K>(&permutations);
 
         // Print permutation counts and details
         for (idx, perms) in permutations.iter().enumerate() {
@@ -114,6 +115,7 @@ impl<const N: usize, const K: usize> SudokuSolver<N, K> {
         graph.create_edges();
         let edge_build_time_ns = phase_start.elapsed().as_nanos();
         let initial_edge_count = graph.total_edges();
+        let graph_mem = graph.memory_usage();
 
         // Debug: print degrees before pruning
         for mg_id in 0..N {
@@ -172,6 +174,10 @@ impl<const N: usize, const K: usize> SudokuSolver<N, K> {
 
         let total_time_ns = total_start.elapsed().as_nanos();
 
+        let masks_mem = (std::mem::size_of::<Masks<N>>()
+            + std::mem::size_of::<Board<N>>()) as u64;
+        let post_prune_mem = graph.memory_usage();
+
         SolveReport {
             solutions,
             stats: SolveStats {
@@ -195,6 +201,10 @@ impl<const N: usize, const K: usize> SudokuSolver<N, K> {
                 pruning_time_ns,
                 extraction_time_ns,
                 total_time_ns,
+                masks_memory_bytes: masks_mem,
+                permutation_memory_bytes: perm_mem,
+                graph_memory_bytes: graph_mem,
+                post_prune_memory_bytes: post_prune_mem,
             },
         }
     }
@@ -229,6 +239,19 @@ fn count_dependent_pair_checks<const N: usize, const K: usize>(
     }
 
     total
+}
+
+fn permutation_memory<const N: usize, const K: usize>(
+    perms: &[GeneratedMinigrid<N, K>; N],
+) -> u64 {
+    let node_size = std::mem::size_of::<PermutationNode<N, K>>();
+    let payloads_size = N; // [u8; N]
+    let mut bytes = 0u64;
+    for mg in perms {
+        bytes += (mg.nodes.capacity() * node_size
+            + mg.payloads.capacity() * payloads_size) as u64;
+    }
+    bytes
 }
 
 fn format_minigrid<const N: usize, const K: usize>(cells: &[u8; N]) -> String {

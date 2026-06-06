@@ -304,6 +304,48 @@ impl<const K: usize, const N: usize> Graph<K, N> {
         self.pair_tables.len()
     }
 
+    pub fn memory_usage(&self) -> u64 {
+        let mut bytes = 0u64;
+
+        // PermutationNodes
+        let node_size =
+            std::mem::size_of::<PermutationNode<N, K>>();
+        for mg in &self.minigrids {
+            bytes += (mg.capacity() * node_size) as u64;
+        }
+
+        // Payloads: [u8; N] each
+        for p in &self.payloads {
+            bytes += (p.capacity() * N) as u64;
+        }
+
+        // Pair adjacency tables (FixedBitSet heap)
+        for pair in &self.pair_tables {
+            for bs in &pair.left_sig_to_right {
+                bytes += bs.memory_bytes() as u64;
+            }
+            for bs in &pair.right_sig_to_left {
+                bytes += bs.memory_bytes() as u64;
+            }
+        }
+
+        // Axis indexes (all the FixedBitSets)
+        for idx in &self.row_indexes {
+            bytes += (idx.perm_to_sig.capacity() * std::mem::size_of::<SigId>()) as u64;
+            for bs in &idx.sig_to_perms {
+                bytes += bs.memory_bytes() as u64;
+            }
+        }
+        for idx in &self.col_indexes {
+            bytes += (idx.perm_to_sig.capacity() * std::mem::size_of::<SigId>()) as u64;
+            for bs in &idx.sig_to_perms {
+                bytes += bs.memory_bytes() as u64;
+            }
+        }
+
+        bytes
+    }
+
     fn build_pair_lookup(pair_tables: &[PairAdj]) -> [[Option<PairLookup>; N]; N] {
         let mut lookup = [[None; N]; N];
         for (pair_idx, pair) in pair_tables.iter().enumerate() {

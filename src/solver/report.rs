@@ -61,6 +61,7 @@ pub struct SolveStats<const N: usize> {
     pub removed_vertices: usize,
     pub solution_count: usize,
     pub puzzle_classification: PuzzleClass,
+    // Timing (nanoseconds)
     pub mask_init_time_ns: u128,
     pub heuristic_time_ns: u128,
     pub permutation_time_ns: u128,
@@ -68,6 +69,11 @@ pub struct SolveStats<const N: usize> {
     pub pruning_time_ns: u128,
     pub extraction_time_ns: u128,
     pub total_time_ns: u128,
+    // Memory (bytes)
+    pub masks_memory_bytes: u64,
+    pub permutation_memory_bytes: u64,
+    pub graph_memory_bytes: u64,
+    pub post_prune_memory_bytes: u64,
 }
 
 #[derive(Debug, Clone)]

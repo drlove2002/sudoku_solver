@@ -278,6 +278,10 @@ impl FixedBitSet {
         &self.words
     }
 
+    pub fn memory_bytes(&self) -> usize {
+        std::mem::size_of::<Self>() + self.words.len() * 8
+    }
+
     fn mask_unused_bits(&mut self) {
         let remainder = self.len % 64;
         if remainder == 0 || self.words.is_empty() {
