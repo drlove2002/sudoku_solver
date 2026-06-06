@@ -133,12 +133,6 @@ impl<const K: usize, const N: usize> Graph<K, N> {
                 let right_len = self.minigrids[right_mg].len();
                 let right_word_count = right_len.div_ceil(64);
                 let left_word_count = left_len.div_ceil(64);
-                let old_bits = 2usize.saturating_mul(left_len).saturating_mul(right_len);
-                let new_bits = left_index
-                    .signatures
-                    .len()
-                    .saturating_mul(right_len)
-                    .saturating_add(right_index.signatures.len().saturating_mul(left_len));
 
                 let mut left_sig_to_right_words =
                     vec![vec![0u64; right_word_count]; left_index.signatures.len()];
@@ -163,36 +157,8 @@ impl<const K: usize, const N: usize> Graph<K, N> {
                     }
                 }
 
-                if new_bits > 0 {
-                    info!(
-                        "MG{}-MG{} ({:?}): perms {}x{}, sigs {}x{}, est bits {} -> {} ({:.2}x)",
-                        left_mg,
-                        right_mg,
-                        relation,
-                        left_len,
-                        right_len,
-                        left_index.signatures.len(),
-                        right_index.signatures.len(),
-                        old_bits,
-                        new_bits,
-                        old_bits as f64 / new_bits as f64
-                    );
-                } else {
-                    info!(
-                        "MG{}-MG{} ({:?}): perms {}x{}, sigs {}x{}, est bits {} -> {}",
-                        left_mg,
-                        right_mg,
-                        relation,
-                        left_len,
-                        right_len,
-                        left_index.signatures.len(),
-                        right_index.signatures.len(),
-                        old_bits,
-                        new_bits
-                    );
-                }
                 info!(
-                    "MG{}-MG{} ({:?}): {} edge(s) added",
+                    "MG{}-MG{} ({:?}): {} edge(s)",
                     left_mg, right_mg, relation, edges_added
                 );
                 total_edges += edges_added;

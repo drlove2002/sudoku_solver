@@ -78,14 +78,14 @@ impl<const N: usize, const K: usize> SudokuSolver<N, K> {
         let mask_init_time_ns = phase_start.elapsed().as_nanos();
         info!("✓ Initial allowed masks pre-calculated (optimized)");
 
-        info!("=== PHASE 1.5: HIDDEN SINGLE DEDUCTION ===");
+        info!("=== PHASE 1.5: CONSTRAINT PROPAGATION ===");
         let phase_start = Instant::now();
         let mut heuristic_board = self.board;
         let cells_filled =
-            heuristics::apply_hidden_singles::<N, K>(&mut heuristic_board, &mut masks);
+            heuristics::propagate_constraints::<N, K>(&mut heuristic_board, &mut masks);
         let heuristic_time_ns = phase_start.elapsed().as_nanos();
         info!(
-            "✓ Filled {} deterministic cells via Hidden Singles",
+            "✓ Filled {} deterministic cells via constraint propagation (naked + hidden singles)",
             cells_filled
         );
 
@@ -204,7 +204,7 @@ impl<const N: usize, const K: usize> SudokuSolver<N, K> {
         masks.generate(&self.board);
 
         let mut heuristic_board = self.board;
-        heuristics::apply_hidden_singles::<N, K>(&mut heuristic_board, &mut masks);
+        heuristics::propagate_constraints::<N, K>(&mut heuristic_board, &mut masks);
 
         let permutations: [GeneratedMinigrid<N, K>; N] =
             permutations::generate_all_permutations(&heuristic_board, &masks);
