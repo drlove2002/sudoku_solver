@@ -10,6 +10,7 @@ use std::collections::HashMap;
 pub struct GeneratedMinigrid<const N: usize, const K: usize> {
     pub nodes: Vec<PermutationNode<N, K>>,
     pub payloads: Vec<[u8; N]>,
+    pub capped: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -541,13 +542,14 @@ mod tests {
                 )
             })
             .collect();
-        GeneratedMinigrid { nodes, payloads }
+        GeneratedMinigrid { nodes, payloads, capped: false }
     }
 
     fn make_graph<const K: usize, const N: usize>() -> Graph<K, N> {
         Graph::new(std::array::from_fn(|_| GeneratedMinigrid {
             nodes: Vec::new(),
             payloads: Vec::new(),
+            capped: false,
         }))
     }
 
