@@ -117,6 +117,69 @@ impl<const N: usize, const K: usize> SudokuSolver<N, K> {
         let initial_edge_count = graph.total_edges();
         let graph_mem = graph.memory_usage();
 
+        // Detailed graph memory breakdown
+        let breakdown = graph.memory_detailed();
+        info!(
+            "   Nodes:              {:>6} ({:.1} MB)",
+            breakdown.nodes_bytes,
+            breakdown.nodes_bytes as f64 / 1_048_576.0
+        );
+        info!(
+            "   Payloads:           {:>6} ({:.1} MB)",
+            breakdown.payloads_bytes,
+            breakdown.payloads_bytes as f64 / 1_048_576.0
+        );
+        info!(
+            "   Row signatures:     {:>6}",
+            breakdown.row_signatures_bytes
+        );
+        info!(
+            "   Row perm→sig:       {:>6}",
+            breakdown.row_perm_to_sig_bytes
+        );
+        info!(
+            "   Row sig→perms:      {:>6} ({:.1} MB)",
+            breakdown.row_sig_to_perms_bytes,
+            breakdown.row_sig_to_perms_bytes as f64 / 1_048_576.0
+        );
+        info!(
+            "   Col signatures:     {:>6}",
+            breakdown.col_signatures_bytes
+        );
+        info!(
+            "   Col perm→sig:       {:>6}",
+            breakdown.col_perm_to_sig_bytes
+        );
+        info!(
+            "   Col sig→perms:      {:>6} ({:.1} MB)",
+            breakdown.col_sig_to_perms_bytes,
+            breakdown.col_sig_to_perms_bytes as f64 / 1_048_576.0
+        );
+        info!(
+            "   Pair L→R:           {:>6} ({:.1} MB)",
+            breakdown.pair_tables_left_bytes,
+            breakdown.pair_tables_left_bytes as f64 / 1_048_576.0
+        );
+        info!(
+            "   Pair R→L:           {:>6} ({:.1} MB)",
+            breakdown.pair_tables_right_bytes,
+            breakdown.pair_tables_right_bytes as f64 / 1_048_576.0
+        );
+        info!("   Pair count:         {}", breakdown.pair_count);
+
+        let sig_perms_total = breakdown.row_sig_to_perms_bytes + breakdown.col_sig_to_perms_bytes;
+        let pair_total = breakdown.pair_tables_left_bytes + breakdown.pair_tables_right_bytes;
+        info!(
+            "   ── sig→perms (row+col): {:>6} ({:.1} MB)",
+            sig_perms_total,
+            sig_perms_total as f64 / 1_048_576.0
+        );
+        info!(
+            "   ── pair tables (L+R): {:>6} ({:.1} MB)",
+            pair_total,
+            pair_total as f64 / 1_048_576.0
+        );
+
         // Debug: print degrees before pruning
         for mg_id in 0..N {
             for (perm_id, degree) in graph.permutation_degrees(mg_id) {
@@ -174,8 +237,7 @@ impl<const N: usize, const K: usize> SudokuSolver<N, K> {
 
         let total_time_ns = total_start.elapsed().as_nanos();
 
-        let masks_mem = (std::mem::size_of::<Masks<N>>()
-            + std::mem::size_of::<Board<N>>()) as u64;
+        let masks_mem = (std::mem::size_of::<Masks<N>>() + std::mem::size_of::<Board<N>>()) as u64;
         let post_prune_mem = graph.memory_usage();
 
         SolveReport {
@@ -241,15 +303,12 @@ fn count_dependent_pair_checks<const N: usize, const K: usize>(
     total
 }
 
-fn permutation_memory<const N: usize, const K: usize>(
-    perms: &[GeneratedMinigrid<N, K>; N],
-) -> u64 {
+fn permutation_memory<const N: usize, const K: usize>(perms: &[GeneratedMinigrid<N, K>; N]) -> u64 {
     let node_size = std::mem::size_of::<PermutationNode<N, K>>();
     let payloads_size = N; // [u8; N]
     let mut bytes = 0u64;
     for mg in perms {
-        bytes += (mg.nodes.capacity() * node_size
-            + mg.payloads.capacity() * payloads_size) as u64;
+        bytes += (mg.nodes.capacity() * node_size + mg.payloads.capacity() * payloads_size) as u64;
     }
     bytes
 }

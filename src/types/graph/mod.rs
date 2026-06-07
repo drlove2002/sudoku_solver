@@ -48,6 +48,21 @@ pub struct AxisIndex<const K: usize> {
 }
 
 #[derive(Debug, Clone)]
+pub struct GraphMemoryBreakdown {
+    pub nodes_bytes: u64,
+    pub payloads_bytes: u64,
+    pub row_signatures_bytes: u64,
+    pub row_perm_to_sig_bytes: u64,
+    pub row_sig_to_perms_bytes: u64,
+    pub col_signatures_bytes: u64,
+    pub col_perm_to_sig_bytes: u64,
+    pub col_sig_to_perms_bytes: u64,
+    pub pair_tables_left_bytes: u64,
+    pub pair_tables_right_bytes: u64,
+    pub pair_count: usize,
+}
+
+#[derive(Debug, Clone)]
 pub struct PairAdj {
     left_mg: usize,
     right_mg: usize,
@@ -63,6 +78,7 @@ pub struct Graph<const K: usize, const N: usize> {
     col_indexes: [AxisIndex<K>; N],
     pair_tables: Vec<PairAdj>,
     pair_lookup: [[Option<PairLookup>; N]; N],
+    cached_edge_count: usize,
 }
 
 impl<const K: usize, const N: usize> Graph<K, N> {
@@ -92,6 +108,7 @@ impl<const K: usize, const N: usize> Graph<K, N> {
             col_indexes,
             pair_tables: Vec::new(),
             pair_lookup: [[None; N]; N],
+            cached_edge_count: 0,
         }
     }
 
@@ -180,7 +197,24 @@ impl<const K: usize, const N: usize> Graph<K, N> {
         }
 
         self.pair_lookup = Self::build_pair_lookup(&self.pair_tables);
+        self.cached_edge_count = total_edges;
         info!("Total edges created: {}", total_edges);
+
+        // sig_to_perms and signatures are dead after edge construction —
+        // the search path (compatible_set) only reads perm_to_sig + pair_tables.
+        // These are 90%+ of graph memory; reclaim them.
+        for idx in &mut self.row_indexes {
+            idx.sig_to_perms.clear();
+            idx.sig_to_perms.shrink_to_fit();
+            idx.signatures.clear();
+            idx.signatures.shrink_to_fit();
+        }
+        for idx in &mut self.col_indexes {
+            idx.sig_to_perms.clear();
+            idx.sig_to_perms.shrink_to_fit();
+            idx.signatures.clear();
+            idx.signatures.shrink_to_fit();
+        }
     }
 
     pub fn retain_permutations(&mut self, keep: &[Vec<usize>; N]) {
@@ -237,24 +271,7 @@ impl<const K: usize, const N: usize> Graph<K, N> {
     }
 
     pub fn total_edges(&self) -> usize {
-        self.pair_tables
-            .iter()
-            .map(|pair| {
-                let left_index = match pair.relation {
-                    Relation::Row => &self.row_indexes[pair.left_mg],
-                    Relation::Col => &self.col_indexes[pair.left_mg],
-                    Relation::Not => unreachable!("unrelated minigrid pairs are skipped"),
-                };
-
-                pair.left_sig_to_right
-                    .iter()
-                    .enumerate()
-                    .map(|(sig_id, edges)| {
-                        edges.count_ones() * left_index.sig_to_perms[sig_id].count_ones()
-                    })
-                    .sum::<usize>()
-            })
-            .sum()
+        self.cached_edge_count
     }
 
     pub fn permutation_count(&self, mg_id: usize) -> usize {
@@ -302,6 +319,74 @@ impl<const K: usize, const N: usize> Graph<K, N> {
 
     pub fn pair_count(&self) -> usize {
         self.pair_tables.len()
+    }
+
+    pub fn memory_detailed(&self) -> GraphMemoryBreakdown {
+        let node_size = std::mem::size_of::<PermutationNode<N, K>>() as u64;
+
+        let mut nodes_capacity = 0usize;
+        let mut payload_capacity = 0usize;
+        for mg in &self.minigrids {
+            nodes_capacity += mg.capacity();
+        }
+        for p in &self.payloads {
+            payload_capacity += p.capacity();
+        }
+
+        let nodes_bytes = nodes_capacity as u64 * node_size;
+        let payloads_bytes = payload_capacity as u64 * N as u64;
+
+        // Row index: signatures
+        let mut row_signatures_bytes = 0u64;
+        let mut row_sig_to_perms_bytes = 0u64;
+        let mut row_perm_to_sig_bytes = 0u64;
+        for idx in &self.row_indexes {
+            row_signatures_bytes += (idx.signatures.capacity() * std::mem::size_of::<MaskSignature<K>>()) as u64;
+            row_perm_to_sig_bytes += (idx.perm_to_sig.capacity() * std::mem::size_of::<SigId>()) as u64;
+            for bs in &idx.sig_to_perms {
+                row_sig_to_perms_bytes += bs.memory_bytes() as u64;
+            }
+        }
+
+        // Col index: signatures
+        let mut col_signatures_bytes = 0u64;
+        let mut col_sig_to_perms_bytes = 0u64;
+        let mut col_perm_to_sig_bytes = 0u64;
+        for idx in &self.col_indexes {
+            col_signatures_bytes += (idx.signatures.capacity() * std::mem::size_of::<MaskSignature<K>>()) as u64;
+            col_perm_to_sig_bytes += (idx.perm_to_sig.capacity() * std::mem::size_of::<SigId>()) as u64;
+            for bs in &idx.sig_to_perms {
+                col_sig_to_perms_bytes += bs.memory_bytes() as u64;
+            }
+        }
+
+        // Pair tables
+        let mut pair_left_bytes = 0u64;
+        let mut pair_right_bytes = 0u64;
+        let mut pair_count = 0usize;
+        for pair in &self.pair_tables {
+            pair_count += 1;
+            for bs in &pair.left_sig_to_right {
+                pair_left_bytes += bs.memory_bytes() as u64;
+            }
+            for bs in &pair.right_sig_to_left {
+                pair_right_bytes += bs.memory_bytes() as u64;
+            }
+        }
+
+        GraphMemoryBreakdown {
+            nodes_bytes,
+            payloads_bytes,
+            row_signatures_bytes,
+            row_perm_to_sig_bytes,
+            row_sig_to_perms_bytes,
+            col_signatures_bytes,
+            col_perm_to_sig_bytes,
+            col_sig_to_perms_bytes,
+            pair_tables_left_bytes: pair_left_bytes,
+            pair_tables_right_bytes: pair_right_bytes,
+            pair_count,
+        }
     }
 
     pub fn memory_usage(&self) -> u64 {
