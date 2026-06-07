@@ -68,6 +68,9 @@ fn run_puzzle<const N: usize, const K: usize>(parsed_cells: &[u8], visualize: bo
         }
     }
 
+    let total_pre = report.stats.masks_memory_bytes
+        + report.stats.permutation_memory_bytes
+        + report.stats.graph_memory_bytes;
     println!("\n=== MEMORY FOOTPRINT ===");
     println!(
         "Masks + Board:   {}",
@@ -80,6 +83,11 @@ fn run_puzzle<const N: usize, const K: usize>(parsed_cells: &[u8], visualize: bo
     println!(
         "Graph:           {}",
         mem_str(report.stats.graph_memory_bytes)
+    );
+    println!("────────────────────────");
+    println!(
+        "Total (pre-prune): {}",
+        mem_str(total_pre)
     );
     println!(
         "Post-prune:      {}",
