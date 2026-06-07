@@ -1,12 +1,14 @@
-mod remove_digit;
+mod box_line;
 mod pairs;
+mod remove_digit;
 
 use crate::types::{Board, masks::Masks};
-use remove_digit::remove_digit;
+use box_line::{claiming_pairs, pointing_pairs};
 use pairs::{
     hidden_pairs_boxes, hidden_pairs_cols, hidden_pairs_rows,
     naked_pairs_boxes, naked_pairs_cols, naked_pairs_rows,
 };
+use remove_digit::remove_digit;
 use std::collections::VecDeque;
 
 /// Constraint propagation using incremental bitmask counters.
@@ -146,6 +148,8 @@ pub fn propagate_constraints<const N: usize, const K: usize>(
         pair_found |= hidden_pairs_rows::<N, K>(board, &mut allowed, &mut row_count, &mut row_pos, &mut col_count, &mut box_count, &mut col_pos, &mut box_pos, &mut queue);
         pair_found |= hidden_pairs_cols::<N, K>(board, &mut allowed, &mut col_count, &mut col_pos, &mut row_count, &mut box_count, &mut row_pos, &mut box_pos, &mut queue);
         pair_found |= hidden_pairs_boxes::<N, K>(board, &mut allowed, &mut box_count, &mut box_pos, &mut row_count, &mut col_count, &mut row_pos, &mut col_pos, &mut queue);
+        pair_found |= pointing_pairs::<N, K>(board, &mut allowed, &mut row_count, &mut col_count, &mut box_count, &mut row_pos, &mut col_pos, &mut box_pos, &mut queue);
+        pair_found |= claiming_pairs::<N, K>(board, &mut allowed, &mut row_count, &mut col_count, &mut box_count, &mut row_pos, &mut col_pos, &mut box_pos, &mut queue);
 
         if !pair_found { break; }
     }
