@@ -78,7 +78,7 @@ impl<const N: usize, const K: usize> SudokuSolver<N, K> {
         let mask_init_time_ns = phase_start.elapsed().as_nanos();
         info!("✓ Initial allowed masks pre-calculated (optimized)");
 
-        info!("=== PHASE 1.5: CONSTRAINT PROPAGATION ===");
+        info!("=== PHASE 2: CONSTRAINT PROPAGATION ===");
         let phase_start = Instant::now();
         let mut heuristic_board = self.board;
         let cells_filled =
@@ -89,7 +89,7 @@ impl<const N: usize, const K: usize> SudokuSolver<N, K> {
             cells_filled
         );
 
-        info!("=== PHASE 2: MINIGRID PERMUTATION GENERATION ===");
+        info!("=== PHASE 3: MINIGRID PERMUTATION GENERATION ===");
         let phase_start = Instant::now();
         let permutations: [GeneratedMinigrid<N, K>; N] =
             permutations::generate_all_permutations(&heuristic_board, &masks);
@@ -106,7 +106,7 @@ impl<const N: usize, const K: usize> SudokuSolver<N, K> {
             }
         }
 
-        info!("=== PHASE 3: GRAPH CONSTRUCTION ===");
+        info!("=== PHASE 4: GRAPH CONSTRUCTION ===");
         let phase_start = Instant::now();
         let mut graph = Graph::new(permutations);
         let initial_perms = graph.total_permutations();
@@ -159,7 +159,7 @@ impl<const N: usize, const K: usize> SudokuSolver<N, K> {
             graph.export_to_json("results/graph.json");
         }
 
-        info!("=== PHASE 4: GRAPH PRUNING ===");
+        info!("=== PHASE 5: GRAPH PRUNING ===");
         let phase_start = Instant::now();
         let mut pruner = Pruner::new(&mut graph);
         let PruneResult {
@@ -174,7 +174,7 @@ impl<const N: usize, const K: usize> SudokuSolver<N, K> {
             initial_perms, final_perms, removed
         );
 
-        info!("=== PHASE 5: SOLUTION EXTRACTION ===");
+        info!("=== PHASE 6: SOLUTION EXTRACTION ===");
         let phase_start = Instant::now();
         let extractor = Extractor::new(&graph).with_mode(self.search_mode);
         let solutions = extractor.run_with_configurations(configurations);
