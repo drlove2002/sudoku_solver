@@ -213,9 +213,17 @@ impl<'a, const K: usize, const N: usize> Extractor<'a, K, N> {
     }
 
     pub fn run_with_configurations(&self, configurations: Vec<[usize; N]>) -> Vec<Solution<N>> {
-        let mut solutions = Vec::with_capacity(configurations.len());
+        let configs = if configurations.is_empty() {
+            // Pruning skipped exact support search — run it now
+            let search = Search::new(self.graph).with_mode(self.mode);
+            search.all()
+        } else {
+            configurations
+        };
 
-        for config in configurations {
+        let mut solutions = Vec::with_capacity(configs.len());
+
+        for config in configs {
             let board = self.reconstruct(&config);
 
             if !board.is_valid() {

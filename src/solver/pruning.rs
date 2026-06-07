@@ -27,6 +27,32 @@ impl<'a, const K: usize, const N: usize> Pruner<'a, K, N> {
 
         self.run_local();
 
+        let total_after_local: usize = original_counts
+            .iter()
+            .zip(std::array::from_fn::<_, N, _>(|mg_id| self.graph.permutation_count(mg_id)))
+            .map(|(a, b)| a - b)
+            .sum();
+        info!(
+            "Local pruning removed {} permutation(s)",
+            total_after_local
+        );
+
+        let current_total = self.graph.total_permutations();
+        // Exact global support search is O(#configs × N × P).
+        // For very large graphs the benefit (shrinking pair tables for Phase 5)
+        // is outweighed by the cost. Skip and let the extractor search directly.
+        const EXACT_PRUNING_THRESHOLD: usize = 200_000;
+        if current_total > EXACT_PRUNING_THRESHOLD {
+            info!(
+                "Skipping exact pruning ({} perms > {} threshold) — extractor will search directly",
+                current_total, EXACT_PRUNING_THRESHOLD
+            );
+            return PruneResult {
+                removed_total: total_after_local,
+                configurations: Vec::new(), // empty → extractor runs its own search
+            };
+        }
+
         // Run the exact global search to find all valid configurations
         let configurations = Search::new(self.graph).all();
         let solution_count = configurations.len();
