@@ -85,7 +85,7 @@ impl<const N: usize, const K: usize> SudokuSolver<N, K> {
             heuristics::propagate_constraints::<N, K>(&mut heuristic_board, &mut masks);
         let heuristic_time_ns = phase_start.elapsed().as_nanos();
         info!(
-            "✓ Filled {} deterministic cells via constraint propagation (naked + hidden singles)",
+            "✓ Filled {} deterministic cells via constraint propagation",
             cells_filled
         );
 
