@@ -130,30 +130,8 @@ impl<const N: usize, const K: usize> SudokuSolver<N, K> {
             breakdown.payloads_bytes as f64 / 1_048_576.0
         );
         info!(
-            "   Row signatures:     {:>6}",
-            breakdown.row_signatures_bytes
-        );
-        info!(
-            "   Row perm→sig:       {:>6}",
-            breakdown.row_perm_to_sig_bytes
-        );
-        info!(
-            "   Row sig→perms:      {:>6} ({:.1} MB)",
-            breakdown.row_sig_to_perms_bytes,
-            breakdown.row_sig_to_perms_bytes as f64 / 1_048_576.0
-        );
-        info!(
-            "   Col signatures:     {:>6}",
-            breakdown.col_signatures_bytes
-        );
-        info!(
-            "   Col perm→sig:       {:>6}",
-            breakdown.col_perm_to_sig_bytes
-        );
-        info!(
-            "   Col sig→perms:      {:>6} ({:.1} MB)",
-            breakdown.col_sig_to_perms_bytes,
-            breakdown.col_sig_to_perms_bytes as f64 / 1_048_576.0
+            "   perm→sig:           {:>6}",
+            breakdown.row_perm_to_sig_bytes + breakdown.col_perm_to_sig_bytes
         );
         info!(
             "   Pair L→R:           {:>6} ({:.1} MB)",
@@ -164,20 +142,6 @@ impl<const N: usize, const K: usize> SudokuSolver<N, K> {
             "   Pair R→L:           {:>6} ({:.1} MB)",
             breakdown.pair_tables_right_bytes,
             breakdown.pair_tables_right_bytes as f64 / 1_048_576.0
-        );
-        info!("   Pair count:         {}", breakdown.pair_count);
-
-        let sig_perms_total = breakdown.row_sig_to_perms_bytes + breakdown.col_sig_to_perms_bytes;
-        let pair_total = breakdown.pair_tables_left_bytes + breakdown.pair_tables_right_bytes;
-        info!(
-            "   ── sig→perms (row+col): {:>6} ({:.1} MB)",
-            sig_perms_total,
-            sig_perms_total as f64 / 1_048_576.0
-        );
-        info!(
-            "   ── pair tables (L+R): {:>6} ({:.1} MB)",
-            pair_total,
-            pair_total as f64 / 1_048_576.0
         );
 
         // Debug: print degrees before pruning

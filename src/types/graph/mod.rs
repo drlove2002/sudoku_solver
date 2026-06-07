@@ -51,15 +51,10 @@ pub struct AxisIndex<const K: usize> {
 pub struct GraphMemoryBreakdown {
     pub nodes_bytes: u64,
     pub payloads_bytes: u64,
-    pub row_signatures_bytes: u64,
     pub row_perm_to_sig_bytes: u64,
-    pub row_sig_to_perms_bytes: u64,
-    pub col_signatures_bytes: u64,
     pub col_perm_to_sig_bytes: u64,
-    pub col_sig_to_perms_bytes: u64,
     pub pair_tables_left_bytes: u64,
     pub pair_tables_right_bytes: u64,
-    pub pair_count: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -336,36 +331,20 @@ impl<const K: usize, const N: usize> Graph<K, N> {
         let nodes_bytes = nodes_capacity as u64 * node_size;
         let payloads_bytes = payload_capacity as u64 * N as u64;
 
-        // Row index: signatures
-        let mut row_signatures_bytes = 0u64;
-        let mut row_sig_to_perms_bytes = 0u64;
+        // perm_to_sig: lightweight (4B per permutation)
         let mut row_perm_to_sig_bytes = 0u64;
         for idx in &self.row_indexes {
-            row_signatures_bytes += (idx.signatures.capacity() * std::mem::size_of::<MaskSignature<K>>()) as u64;
             row_perm_to_sig_bytes += (idx.perm_to_sig.capacity() * std::mem::size_of::<SigId>()) as u64;
-            for bs in &idx.sig_to_perms {
-                row_sig_to_perms_bytes += bs.memory_bytes() as u64;
-            }
         }
-
-        // Col index: signatures
-        let mut col_signatures_bytes = 0u64;
-        let mut col_sig_to_perms_bytes = 0u64;
         let mut col_perm_to_sig_bytes = 0u64;
         for idx in &self.col_indexes {
-            col_signatures_bytes += (idx.signatures.capacity() * std::mem::size_of::<MaskSignature<K>>()) as u64;
             col_perm_to_sig_bytes += (idx.perm_to_sig.capacity() * std::mem::size_of::<SigId>()) as u64;
-            for bs in &idx.sig_to_perms {
-                col_sig_to_perms_bytes += bs.memory_bytes() as u64;
-            }
         }
 
         // Pair tables
         let mut pair_left_bytes = 0u64;
         let mut pair_right_bytes = 0u64;
-        let mut pair_count = 0usize;
         for pair in &self.pair_tables {
-            pair_count += 1;
             for bs in &pair.left_sig_to_right {
                 pair_left_bytes += bs.memory_bytes() as u64;
             }
@@ -377,15 +356,10 @@ impl<const K: usize, const N: usize> Graph<K, N> {
         GraphMemoryBreakdown {
             nodes_bytes,
             payloads_bytes,
-            row_signatures_bytes,
             row_perm_to_sig_bytes,
-            row_sig_to_perms_bytes,
-            col_signatures_bytes,
             col_perm_to_sig_bytes,
-            col_sig_to_perms_bytes,
             pair_tables_left_bytes: pair_left_bytes,
             pair_tables_right_bytes: pair_right_bytes,
-            pair_count,
         }
     }
 
