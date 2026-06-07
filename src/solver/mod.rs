@@ -106,47 +106,6 @@ impl<const N: usize, const K: usize> SudokuSolver<N, K> {
             }
         }
 
-        // Check for capped minigrids — bail gracefully
-        let capped_count = permutations.iter().filter(|p| p.capped).count();
-        if capped_count > 0 {
-            let capped_ids: Vec<usize> = permutations
-                .iter()
-                .enumerate()
-                .filter_map(|(i, p)| p.capped.then_some(i))
-                .collect();
-            info!(
-                "{} minigrid(s) exceeded the {} permutation cap: {:?}",
-                capped_count, 100_000, capped_ids
-            );
-            info!("Aborting — the minigrid-decomposition approach cannot solve this board size at present.");
-            let total_time_ns = total_start.elapsed().as_nanos();
-            return SolveReport {
-                solutions: Vec::new(),
-                stats: SolveStats {
-                    permutation_counts,
-                    total_invocations,
-                    initial_vertex_count: 0,
-                    initial_edge_count: 0,
-                    pruned_vertex_count: 0,
-                    pruned_edge_count: 0,
-                    removed_vertices: 0,
-                    solution_count: 0,
-                    puzzle_classification: PuzzleClass::Unsolvable,
-                    mask_init_time_ns,
-                    heuristic_time_ns,
-                    permutation_time_ns,
-                    edge_build_time_ns: 0,
-                    pruning_time_ns: 0,
-                    extraction_time_ns: 0,
-                    total_time_ns,
-                    masks_memory_bytes: 0,
-                    permutation_memory_bytes: 0,
-                    graph_memory_bytes: 0,
-                    post_prune_memory_bytes: 0,
-                },
-            };
-        }
-
         info!("=== PHASE 3: GRAPH CONSTRUCTION ===");
         let phase_start = Instant::now();
         let mut graph = Graph::new(permutations);

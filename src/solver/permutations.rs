@@ -12,13 +12,7 @@ pub struct PermutationGenerator<'a, const N: usize, const K: usize> {
     masks: &'a Masks<N>,
     nodes: Vec<PermutationNode<N, K>>,
     payloads: Vec<[u8; N]>,
-    capped: bool,
-    max_perms: usize,
 }
-
-/// Per-minigrid permutation cap for 25×25 (5×5 boxes).
-/// Above this, the DFS terminates early and the minigrid is marked overflowed.
-const PERM_CAP: usize = 100_000;
 
 impl<'a, const N: usize, const K: usize> PermutationGenerator<'a, N, K> {
     pub fn new(mg: Minigrid<N, K>, masks: &'a Masks<N>) -> Self {
@@ -27,39 +21,26 @@ impl<'a, const N: usize, const K: usize> PermutationGenerator<'a, N, K> {
             masks,
             nodes: Vec::new(),
             payloads: Vec::new(),
-            capped: false,
-            max_perms: PERM_CAP,
         }
     }
 
     pub fn generate(mut self) -> GeneratedMinigrid<N, K> {
         let used_mask = self.masks.boxs[self.mg.id];
-        let empties = self.mg.empty.get().count_ones() as usize;
         debug!(
-            "Generating permutations for Minigrid {} ({} empties, initial_mask={})",
-            self.mg.id, empties, used_mask
+            "Generating permutations for Minigrid {} (initial_mask={})",
+            self.mg.id, used_mask
         );
 
         self.dfs(used_mask);
 
-        if self.capped {
-            log::warn!(
-                "Minigrid {} hit permutation cap ({}) — generated {}. Graph disabled.",
-                self.mg.id,
-                self.max_perms,
-                self.nodes.len()
-            );
-        } else {
-            debug!(
-                "Minigrid {} completed: {} solutions",
-                self.mg.id,
-                self.nodes.len()
-            );
-        }
+        debug!(
+            "Minigrid {} completed: {} solutions",
+            self.mg.id,
+            self.nodes.len()
+        );
         GeneratedMinigrid {
             nodes: self.nodes,
             payloads: self.payloads,
-            capped: self.capped,
         }
     }
 
@@ -120,12 +101,6 @@ impl<'a, const N: usize, const K: usize> PermutationGenerator<'a, N, K> {
     }
 
     fn dfs(&mut self, used_mask: DirtyMask<N>) {
-        // Abort early if we hit the cap
-        if self.nodes.len() >= self.max_perms {
-            self.capped = true;
-            return;
-        }
-
         if let Some((current_idx, conflict)) = self.find_best_cell(used_mask) {
             let available = (!conflict.get()) & ((1u32 << N) - 1);
             let mut candidates = available;

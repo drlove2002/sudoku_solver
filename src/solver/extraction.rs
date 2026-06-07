@@ -290,7 +290,7 @@ mod tests {
                 )
             })
             .collect();
-        GeneratedMinigrid { nodes, payloads, capped: false }
+        GeneratedMinigrid { nodes, payloads }
     }
 
     #[test]
