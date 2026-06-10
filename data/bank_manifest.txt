@@ -1,0 +1,81 @@
+
+16x16: 46 instances, 36 solutions
+
+  [01] 16X16 Sudoku Easy | status=solved | clues=108
+  [02] 16X16 Sudoku Easy | status=solved | clues=106
+  [03] 16X16 Sudoku Easy | status=solved | clues=106
+  [04] 16X16 Sudoku Easy | status=solved | clues=108
+  [05] 16X16 Sudoku Easy | status=solved | clues=106
+  [06] 16X16 Sudoku Easy | status=solved | clues=104
+  [07] 16X16 Sudoku Easy | status=solved | clues=100
+  [08] 16X16 Sudoku Easy | status=solved | clues=104
+  [09] 16X16 Sudoku Easy | status=solved | clues=104
+  [10] 16X16 Sudoku Easy | status=solved | clues=102
+  [11] 16X16 Sudoku Easy | status=solved | clues=104
+  [12] 16x16 Sudoku Hard | status=solved | clues=102
+  [13] 16x16 Sudoku Hard | status=solved | clues=106
+  [14] 16x16 Sudoku Hard | status=solved | clues=102
+  [15] 16x16 Sudoku Hard | status=solved | clues=104
+  [16] 16x16 Sudoku Hard | status=solved | clues=100
+  [17] 16x16 Sudoku Hard | status=solved | clues=100
+  [18] 16x16 Sudoku Hard | status=solved | clues=104
+  [19] 16x16 Sudoku Hard | status=solved | clues=102
+  [20] 16x16 Sudoku Hard | status=solved | clues=110
+  [21] 16x16 Sudoku Hard | status=solved | clues=102
+  [22] 16x16 Sudoku Medium | status=solved | clues=108
+  [23] 16x16 Sudoku Medium | status=solved | clues=112
+  [24] 16x16 Sudoku Medium | status=solved | clues=102
+  [25] 16x16 Sudoku Medium | status=solved | clues=98
+  [26] 16x16 Sudoku Medium | status=solved | clues=102
+  [27] 16x16 Sudoku Medium | status=solved | clues=102
+  [28] 16x16 Sudoku Medium | status=solved | clues=104
+  [29] 16x16 Sudoku Medium | status=solved | clues=100
+  [30] 16x16 Sudoku Medium | status=solved | clues=102
+  [31] 16x16 Sudoku Medium | status=solved | clues=100
+  [32] 16x16 Sudoku Medium | status=solved | clues=105
+  [33] 16x16 Sudoku Very Easy | status=solved | clues=106
+  [34] 16x16 Sudoku Very Easy | status=solved | clues=100
+  [35] 16x16 Sudoku Very Easy | status=solved | clues=100
+  [36] 16x16 Sudoku Very Hard | status=solved | clues=92
+  [37] 16x16 Sudoku Very Hard | status=failed | clues=100
+  [38] 16x16 Sudoku Very Hard | status=failed | clues=94
+  [39] 16x16 Sudoku Very Hard | status=failed | clues=106
+  [40] 16x16 Sudoku Very Hard | status=failed | clues=104
+  [41] 16x16 Sudoku Very Hard | status=failed | clues=100
+  [42] 16x16 Sudoku Very Hard | status=failed | clues=108
+  [43] 16x16 Sudoku Very Hard | status=failed | clues=100
+  [44] 16x16 Sudoku Very Hard | status=failed | clues=104
+  [45] 16x16 Sudoku Very Hard | status=failed | clues=102
+  [46] 16x16 Sudoku Very Hard | status=failed | clues=102
+
+
+25x25: 27 instances, 16 solutions
+
+  [01] 25x25 Sudoku Easy | status=solved | clues=354
+  [02] 25x25 Sudoku Easy | status=solved | clues=350
+  [03] 25x25 Sudoku Easy | status=solved | clues=346
+  [04] 25x25 Sudoku Easy | status=solved | clues=355
+  [05] 25x25 Sudoku Easy | status=solved | clues=346
+  [06] 25x25 Sudoku Easy | status=solved | clues=349
+  [07] 25x25 Sudoku Easy | status=solved | clues=345
+  [08] 25x25 Sudoku Easy | status=solved | clues=344
+  [09] 25x25 Sudoku Easy | status=solved | clues=352
+  [10] 25x25 Sudoku Easy | status=solved | clues=345
+  [11] 25x25 Sudoku Easy | status=solved | clues=359
+  [12] 25x25 Sudoku Easy | status=solved | clues=345
+  [13] 25x25 Sudoku Easy | status=solved | clues=297
+  [14] 25x25 Sudoku Easy | status=solved | clues=269
+  [15] 25x25 Sudoku Easy | status=solved | clues=287
+  [16] 25x25 Sudoku Hard | status=solved | clues=296
+  [17] 25x25 Sudoku Hard | status=failed | clues=296
+  [18] 25x25 Sudoku Hard | status=failed | clues=287
+  [19] 25x25 Sudoku Medium | status=failed | clues=294
+  [20] 25x25 Sudoku Medium | status=failed | clues=298
+  [21] 25x25 Sudoku Medium | status=failed | clues=303
+  [22] 25x25 Sudoku Very Easy | status=failed | clues=303
+  [23] 25x25 Sudoku Very Easy | status=failed | clues=303
+  [24] 25x25 Sudoku Very Easy | status=failed | clues=302
+  [25] 25x25 Sudoku Very Hard | status=failed | clues=286
+  [26] 25x25 Sudoku Very Hard | status=failed | clues=321
+  [27] 25x25 Sudoku Very Hard | status=failed | clues=281
+

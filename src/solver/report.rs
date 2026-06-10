@@ -32,6 +32,13 @@ pub enum PuzzleClass {
     Ambiguous(usize),
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum PhaseProgress {
+    Complete,
+    Panic(String),
+    OomAt(String),
+}
+
 impl PuzzleClass {
     pub fn coarse_label(&self) -> &'static str {
         match self {
@@ -61,6 +68,9 @@ pub struct SolveStats<const N: usize> {
     pub removed_vertices: usize,
     pub solution_count: usize,
     pub puzzle_classification: PuzzleClass,
+    pub heuristic_used: bool,
+    pub heuristic_cells_filled: usize,
+    pub phase_progress: PhaseProgress,
     // Timing (nanoseconds)
     pub mask_init_time_ns: u128,
     pub heuristic_time_ns: u128,
@@ -69,8 +79,9 @@ pub struct SolveStats<const N: usize> {
     pub pruning_time_ns: u128,
     pub extraction_time_ns: u128,
     pub total_time_ns: u128,
-    // Memory (bytes)
+    // Memory (bytes) — captured after each phase
     pub masks_memory_bytes: u64,
+    pub heuristic_memory_bytes: u64,
     pub permutation_memory_bytes: u64,
     pub graph_memory_bytes: u64,
     pub post_prune_memory_bytes: u64,

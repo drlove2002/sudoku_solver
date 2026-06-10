@@ -2,12 +2,16 @@ use fern::Dispatch;
 use log::LevelFilter;
 
 pub fn init_logger() {
+    init_logger_with_level(LevelFilter::Info);
+}
+
+pub fn init_logger_with_level(level: LevelFilter) {
     let mut dispatch = Dispatch::new().chain(
         Dispatch::new()
             .format(|out, message, record| {
                 out.finish(format_args!("[{}] {}", record.level(), message))
             })
-            .level(LevelFilter::Info)
+            .level(level)
             .chain(std::io::stdout()),
     );
 
