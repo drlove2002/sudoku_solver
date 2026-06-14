@@ -1,7 +1,7 @@
 use log::{debug, info};
 use solver::{SudokuSolver, init_logger, types, utils::dataset::parse_puzzle_string};
 
-fn run_puzzle<const N: usize, const K: usize>(parsed_cells: &[u8], visualize: bool) {
+fn run_puzzle<const N: usize, const K: usize>(parsed_cells: &[u8], visualize: Option<String>, no_heuristics: bool) {
     let mut cells = [[0u8; N]; N];
     for (i, &val) in parsed_cells.iter().enumerate() {
         cells[i / N][i % N] = val;
@@ -17,8 +17,11 @@ fn run_puzzle<const N: usize, const K: usize>(parsed_cells: &[u8], visualize: bo
     if cfg!(debug_assertions) {
         solver = solver.with_limit(1000);
     }
-    if visualize {
-        solver = solver.with_visualize(true);
+    if let Some(path) = visualize {
+        solver = solver.with_visualize(path);
+    }
+    if no_heuristics {
+        solver = solver.without_heuristics();
     }
     info!("Solver initialized");
 
@@ -102,13 +105,30 @@ fn main() {
     let args: Vec<String> = std::env::args().collect();
 
     // Parse arguments
-    let visualize = args.contains(&"--visualize".to_string());
+    let visualize_output = args.iter().find(|a| *a == "--visualize" || a.starts_with("--visualize="));
+    let visualize_path = visualize_output.and_then(|a| {
+        if let Some((_, path)) = a.split_once('=') {
+            Some(path.to_string())
+        } else {
+            None
+        }
+    });
+    let no_heuristics = args.contains(&"--no-heuristics".to_string());
 
-    let input_str = if args.len() > 1 && !args[1].starts_with("--") {
-        &args[1]
+    // Find the first positional arg (skip args[0] which is the binary path)
+    let input_pos = args.iter().skip(1).position(|a| !a.starts_with("--"));
+    let input_str = if let Some(pos) = input_pos {
+        &args[pos + 1]
     } else {
         "dataset/simple_test.txt"
     };
+    let mut default_output_path = std::path::Path::new(input_str)
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .map(|stem| format!("results/graph_{}_9x9.json", stem));
+    if no_heuristics && visualize_path.is_none() {
+        default_output_path = default_output_path.map(|p| p.replace(".json", "_no_heuristics.json"));
+    }
 
     let content = if std::path::Path::new(input_str).exists() {
         info!("Read input file: {}", input_str);
@@ -129,10 +149,11 @@ fn main() {
     let parsed_cells = parse_puzzle_string(&cleaned_content)
         .unwrap_or_else(|e| panic!("Failed to parse puzzle: {}", e));
 
+    let graph_output = visualize_path.or(default_output_path);
     match parsed_cells.len() {
-        81 => run_puzzle::<9, 3>(&parsed_cells, visualize),
-        256 => run_puzzle::<16, 4>(&parsed_cells, visualize),
-        625 => run_puzzle::<25, 5>(&parsed_cells, visualize),
+        81 => run_puzzle::<9, 3>(&parsed_cells, graph_output, no_heuristics),
+        256 => run_puzzle::<16, 4>(&parsed_cells, graph_output, no_heuristics),
+        625 => run_puzzle::<25, 5>(&parsed_cells, graph_output, no_heuristics),
         len => panic!("Unsupported puzzle length: {}", len),
     }
 }

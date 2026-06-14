@@ -1,13 +1,16 @@
 use serde::{Deserialize, Serialize};
-use std::fs::File;
+use std::fs;
 use std::io::Write;
 
 use super::Graph;
+use crate::solver::report::Solution;
 
 #[derive(Serialize, Deserialize)]
 pub struct GraphData {
     nodes: Vec<NodeData>,
     edges: Vec<EdgeData>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    solutions: Option<Vec<SolutionData>>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -23,6 +26,11 @@ struct NodeData {
 struct EdgeData {
     source: String,
     target: String,
+}
+
+#[derive(Serialize, Deserialize)]
+struct SolutionData {
+    board: Vec<Vec<u8>>,
 }
 
 impl<const K: usize, const N: usize> Graph<K, N> {
@@ -44,6 +52,31 @@ impl<const K: usize, const N: usize> Graph<K, N> {
         };
 
         format!("{}-{}", row_name, col_name)
+    }
+
+    /// Patch an existing graph JSON with solved board data
+    pub fn patch_json_with_solutions(&self, path: &str, solutions: &[Solution<N>]) {
+        let raw = fs::read_to_string(path)
+            .unwrap_or_else(|_| panic!("Failed to read {}", path));
+        let mut graph_data: GraphData =
+            serde_json::from_str(&raw).expect("Failed to parse graph JSON");
+
+        graph_data.solutions = Some(
+            solutions
+                .iter()
+                .map(|s| SolutionData {
+                    board: s.board.cells.iter().map(|row| row.to_vec()).collect(),
+                })
+                .collect(),
+        );
+
+        let json = serde_json::to_string_pretty(&graph_data).expect("Json serialization failed");
+        let mut file =
+            std::fs::File::create(path).unwrap_or_else(|_| panic!("Failed to create {}", path));
+        file.write_all(json.as_bytes())
+            .unwrap_or_else(|_| panic!("Failed to write in {}", path));
+
+        println!("Patched graph JSON with {} solution(s)", solutions.len());
     }
 
     /// Export graph to JSON format for visualization
@@ -82,11 +115,11 @@ impl<const K: usize, const N: usize> Graph<K, N> {
 
         println!("  Nodes: {}", nodes.len());
         println!("  Edges: {}", edges.len());
-        let graph_data = GraphData { nodes, edges };
+        let graph_data = GraphData { nodes, edges, solutions: None };
         let json = serde_json::to_string_pretty(&graph_data).expect("Json serialization failed");
 
         let mut file =
-            File::create(filename).unwrap_or_else(|_| panic!("Failed to create {}", filename));
+            std::fs::File::create(filename).unwrap_or_else(|_| panic!("Failed to create {}", filename));
         file.write_all(json.as_bytes())
             .unwrap_or_else(|_| panic!("Failed to write in {}", filename));
 

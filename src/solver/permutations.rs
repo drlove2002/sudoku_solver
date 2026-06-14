@@ -4,7 +4,7 @@ use crate::types::{
     graph::{GeneratedMinigrid, PermId, PermutationNode},
     masks::Masks,
 };
-use log::{debug, trace};
+use log::{debug, info, trace};
 use rayon::prelude::*;
 
 pub struct PermutationGenerator<'a, const N: usize, const K: usize> {
@@ -26,15 +26,15 @@ impl<'a, const N: usize, const K: usize> PermutationGenerator<'a, N, K> {
 
     pub fn generate(mut self) -> GeneratedMinigrid<N, K> {
         let used_mask = self.masks.boxs[self.mg.id];
-        debug!(
+        info!(
             "Generating permutations for Minigrid {} (initial_mask={})",
             self.mg.id, used_mask
         );
 
         self.dfs(used_mask);
 
-        debug!(
-            "Minigrid {} completed: {} solutions",
+        info!(
+            "Minigrid {}: {} permutation(s)",
             self.mg.id,
             self.nodes.len()
         );

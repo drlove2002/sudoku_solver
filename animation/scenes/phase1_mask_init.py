@@ -25,19 +25,8 @@ sys.path.insert(
 from manim import *
 
 from animation.components.bitmask import MaskPanel
-from animation.components.board import SudokuBoard
+from animation.components.board import SudokuBoard, candidate_pos
 from animation.puzzle import DRY_RUN_PUZZLE, K, N, box_idx
-
-
-def candidate_pos(center: np.ndarray, cell_size: float, idx: int) -> np.ndarray:
-    """Return the position for the idx-th pencil mark in a 3×3 grid."""
-    return center + np.array(
-        [
-            (idx % 3 - 1) * cell_size * 0.25,
-            (idx // 3 - 1) * cell_size * 0.25,
-            0,
-        ]
-    )
 
 
 class Phase1MaskInit(Scene):

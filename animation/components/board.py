@@ -7,6 +7,7 @@ Renders a 9x9 grid with:
 - Given digits in one style, placed digits in another
 - Optional cell highlighting (color fills)
 - Optional minigrid highlight outlines
+- Optional pencil marks (allowed candidates) per empty cell
 """
 
 from manim import *
@@ -23,6 +24,24 @@ HIGHLIGHT_CELL = YELLOW
 HIGHLIGHT_MINIGRID = GREEN
 CONFLICT_CELL = RED
 CANDIDATE_COLOR = GRAY
+
+
+def candidate_pos(center: np.ndarray, cell_size: float, idx: int) -> np.ndarray:
+    """Return the position for the idx-th pencil mark in a 3×3 grid of marks.
+
+    `idx` ranges 0..8, laid out row-major in a 3×3 micro-grid centered on the
+    cell. The offset scales with cell_size so marks stay readable across cell
+    sizes. Marks that overflow the candidate count leave gaps, so the layout
+    always reads in numeric order.
+    """
+    return center + np.array(
+        [
+            (idx % 3 - 1) * cell_size * 0.32,
+            (idx // 3 - 1) * cell_size * 0.32,
+            0,
+        ]
+    )
+
 
 
 class SudokuBoard(VGroup):
@@ -48,6 +67,8 @@ class SudokuBoard(VGroup):
         self.grid_lines = VGroup()
         self.minigrid_outlines = VGroup()
         self.digit_tex: dict[tuple[int, int], VMobject] = {}
+        # Pencil marks: (r, c, d) -> Tex, kept so we can animate erasure.
+        self.pencil_tex: dict[tuple[int, int, int], VMobject] = {}
 
         self._build_grid()
         self._build_digits()
@@ -136,3 +157,97 @@ class SudokuBoard(VGroup):
             return Transform(old_tex, tex)
         else:
             return Write(tex)
+
+    # ────────────────────────────────────────────────────
+    # Pencil marks (allowed candidates)
+    # ────────────────────────────────────────────────────
+
+    def set_pencil_marks(
+        self,
+        r: int,
+        c: int,
+        digits: list[int],
+        color=GREY,
+        font_size: int | None = None,
+    ) -> list[VMobject]:
+        """Place pencil marks for `digits` (1..=9) in cell (r, c). Returns the list of Tex objects.
+
+        Replaces any existing pencil marks for that cell. Use `digits=[]` to clear.
+        """
+        self.clear_pencil_marks(r, c)
+        if not digits:
+            return []
+        if font_size is None:
+            font_size = max(int(self.cell_size * 20), 10)
+        center = self.cell_center(r, c)
+        new_marks: list[VMobject] = []
+        for i, d in enumerate(sorted(digits)):
+            tex = Tex(str(d), color=color, font_size=font_size)
+            tex.move_to(candidate_pos(center, self.cell_size, i))
+            self.pencil_tex[(r, c, d)] = tex
+            self.add(tex)
+            new_marks.append(tex)
+        return new_marks
+
+    def clear_pencil_marks(self, r: int, c: int) -> list[VMobject]:
+        """Remove every pencil mark from cell (r, c). Returns the removed Tex objects."""
+        removed: list[VMobject] = []
+        keys = [k for k in self.pencil_tex if k[0] == r and k[1] == c]
+        for k in keys:
+            tex = self.pencil_tex.pop(k)
+            tex.remove(self)
+            removed.append(tex)
+        return removed
+
+    def get_pencil_mark(self, r: int, c: int, d: int) -> VMobject | None:
+        return self.pencil_tex.get((r, c, d))
+
+    def set_pencil_marks_for_board(
+        self,
+        allowed: list[list[int]],
+        color=GREY,
+        font_size: int | None = None,
+    ) -> VGroup:
+        """Place pencil marks for every empty cell from an allowed[r][c] bitmask grid.
+
+        Returns a VGroup of every Tex added (handy for batched animations).
+        Cells with `allowed[r][c] == 0` (givens) get no marks.
+        """
+        all_marks: list[VMobject] = []
+        for r in range(self.N):
+            for c in range(self.N):
+                if self.cells[r][c] != 0:
+                    continue
+                mask = allowed[r][c]
+                if mask == 0:
+                    continue
+                digits = [d + 1 for d in range(self.N) if mask & (1 << d)]
+                all_marks.extend(self.set_pencil_marks(r, c, digits, color=color, font_size=font_size))
+        return VGroup(*all_marks)
+
+    def peer_cells(self, r: int, c: int, house: str) -> list[tuple[int, int]]:
+        """Return the cells that share a row/col/box with (r, c), excluding (r, c).
+
+        `house` is one of: "row", "col", "box", "row+col+box" (all 20 peer cells).
+        """
+        out: list[tuple[int, int]] = []
+        b = box_idx(r, c)
+        if "row" in house:
+            out.extend((r, cc) for cc in range(self.N) if cc != c)
+        if "col" in house:
+            out.extend((rr, c) for rr in range(self.N) if rr != r)
+        if "box" in house:
+            base_r = (b // K) * K
+            base_c = (b % K) * K
+            for dr in range(K):
+                for dc in range(K):
+                    rr, cc = base_r + dr, base_c + dc
+                    if (rr, cc) == (r, c):
+                        continue
+                    out.append((rr, cc))
+        # Dedup while preserving order
+        seen = set(); deduped = []
+        for cell in out:
+            if cell not in seen:
+                seen.add(cell); deduped.append(cell)
+        return deduped

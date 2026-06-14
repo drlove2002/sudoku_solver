@@ -18,7 +18,7 @@ use std::time::Instant;
 pub struct SudokuSolver<const N: usize, const K: usize> {
     pub board: Board<N>,
     pub search_mode: SearchMode,
-    pub visualize: bool,
+    pub visualize: Option<String>,
     pub use_heuristics: bool,
     pub breadcrumb_path: Option<String>,
 }
@@ -28,7 +28,7 @@ impl<const N: usize, const K: usize> SudokuSolver<N, K> {
         SudokuSolver {
             board,
             search_mode: SearchMode::EnumerateAll,
-            visualize: false,
+            visualize: None,
             use_heuristics: true,
             breadcrumb_path: None,
         }
@@ -59,8 +59,8 @@ impl<const N: usize, const K: usize> SudokuSolver<N, K> {
         self
     }
 
-    pub fn with_visualize(mut self, visualize: bool) -> Self {
-        self.visualize = visualize;
+    pub fn with_visualize(mut self, path: String) -> Self {
+        self.visualize = Some(path);
         self
     }
 
@@ -91,12 +91,15 @@ impl<const N: usize, const K: usize> SudokuSolver<N, K> {
         let total_start = Instant::now();
 
         // Phase 1: Mask init
+        info!("=== PHASE 1: PARSING AND MASK INITIALIZATION ===");
         let phase_start = Instant::now();
         let mut masks = Masks::<N>::default();
         masks.generate(&self.board);
         let mask_init_time_ns = phase_start.elapsed().as_nanos();
+        info!("✓ Initial allowed masks pre-calculated (optimized)");
 
         // Phase 2: Constraint propagation
+        info!("=== PHASE 2: CONSTRAINT PROPAGATION ===");
         let phase_start = Instant::now();
         let mut heuristic_board = self.board;
         let cells_filled = if self.use_heuristics {
@@ -105,11 +108,15 @@ impl<const N: usize, const K: usize> SudokuSolver<N, K> {
             0
         };
         let heuristic_time_ns = phase_start.elapsed().as_nanos();
+        if self.use_heuristics {
+            info!("✓ Filled {} deterministic cells via constraint propagation", cells_filled);
+        }
 
         // Breadcrumb: entering Phase 3
         write_breadcrumb(&self.breadcrumb_path, "permutations");
 
         // Phase 3: Permutation generation
+        info!("=== PHASE 3: MINIGRID PERMUTATION GENERATION ===");
         let phase_start = Instant::now();
         let permutations: [GeneratedMinigrid<N, K>; N] =
             permutations::generate_all_permutations(&heuristic_board, &masks);
@@ -122,24 +129,54 @@ impl<const N: usize, const K: usize> SudokuSolver<N, K> {
         write_breadcrumb(&self.breadcrumb_path, "graph");
 
         // Phase 4: Graph construction
+        info!("=== PHASE 4: GRAPH CONSTRUCTION ===");
         let phase_start = Instant::now();
         let mut graph = Graph::new(permutations);
         let initial_perms = graph.total_permutations();
+        info!("Initial graph: {} permutation(s)", initial_perms);
         graph.create_edges();
         let edge_build_time_ns = phase_start.elapsed().as_nanos();
         let initial_edge_count = graph.total_edges();
         let graph_mem = graph.memory_usage();
+        let detailed_mem = graph.memory_detailed();
+        info!(
+            "   Nodes:               {:>8} ({})",
+            graph.total_permutations(),
+            mem_str(detailed_mem.nodes_bytes)
+        );
+        info!(
+            "   Payloads:            {:>8} ({})",
+            graph.total_permutations(),
+            mem_str(detailed_mem.payloads_bytes)
+        );
+        info!(
+            "   perm→sig:            {:>8}",
+            detailed_mem.perm_to_sig_bytes
+        );
+        info!(
+            "   Pair L→R:            {:>8} ({})",
+            detailed_mem.pair_tables_left_count,
+            mem_str(detailed_mem.pair_tables_left_bytes)
+        );
+        info!(
+            "   Pair R→L:            {:>8} ({})",
+            detailed_mem.pair_tables_right_count,
+            mem_str(detailed_mem.pair_tables_right_bytes)
+        );
+        info!("✓ Compatibility edges built");
 
-        if self.visualize {
+        if let Some(path) = &self.visualize {
             info!("Exporting graph JSON for visualization...");
             std::fs::create_dir_all("results").unwrap_or_default();
-            graph.export_to_json("results/graph.json");
+            // Export pre-pruning graph for rich visualization
+            graph.export_to_json(path);
         }
 
         // Breadcrumb: entering Phase 5
         write_breadcrumb(&self.breadcrumb_path, "pruning");
 
         // Phase 5: Pruning
+        info!("=== PHASE 5: GRAPH PRUNING ===");
         let phase_start = Instant::now();
         let mut pruner = Pruner::new(&mut graph);
         let PruneResult {
@@ -149,15 +186,36 @@ impl<const N: usize, const K: usize> SudokuSolver<N, K> {
         let pruning_time_ns = phase_start.elapsed().as_nanos();
         let final_perms = graph.total_permutations();
         let pruned_edge_count = graph.total_edges();
+        info!(
+            "✓ Pruning complete: {} → {} permutation(s) ({} removed)",
+            initial_perms, final_perms, removed
+        );
 
         // Breadcrumb: entering Phase 6
         write_breadcrumb(&self.breadcrumb_path, "extraction");
 
         // Phase 6: Extraction
+        info!("=== PHASE 6: SOLUTION EXTRACTION ===");
         let phase_start = Instant::now();
         let extractor = Extractor::new(&graph).with_mode(self.search_mode);
         let solutions = extractor.run_with_configurations(configurations);
         let extraction_time_ns = phase_start.elapsed().as_nanos();
+
+        for (i, solution) in solutions.iter().enumerate() {
+            info!(
+                "Solution {} (Permutations: {:?}):",
+                i + 1,
+                solution.permutation_ids
+            );
+            info!("\n{}", solution.board);
+        }
+
+        // Patch the graph JSON with the actual solved board(s)
+        if let Some(path) = &self.visualize {
+            if !solutions.is_empty() {
+                graph.patch_json_with_solutions(path, &solutions);
+            }
+        }
 
         let classification = match solutions.len() {
             0 => PuzzleClass::Unsolvable,
@@ -166,6 +224,16 @@ impl<const N: usize, const K: usize> SudokuSolver<N, K> {
         };
 
         let total_time_ns = total_start.elapsed().as_nanos();
+
+        fn mem_str(bytes: u64) -> String {
+            if bytes >= 1_048_576 {
+                format!("{:.1} MB", bytes as f64 / 1_048_576.0)
+            } else if bytes >= 1024 {
+                format!("{:.1} KB", bytes as f64 / 1024.0)
+            } else {
+                format!("{} B", bytes)
+            }
+        }
 
         let masks_mem = (std::mem::size_of::<Masks<N>>() + std::mem::size_of::<Board<N>>()) as u64;
         let heuristic_mem = if self.use_heuristics { masks_mem } else { 0 };

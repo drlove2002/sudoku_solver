@@ -51,9 +51,10 @@ pub struct AxisIndex<const K: usize> {
 pub struct GraphMemoryBreakdown {
     pub nodes_bytes: u64,
     pub payloads_bytes: u64,
-    pub row_perm_to_sig_bytes: u64,
-    pub col_perm_to_sig_bytes: u64,
+    pub perm_to_sig_bytes: u64,
+    pub pair_tables_left_count: usize,
     pub pair_tables_left_bytes: u64,
+    pub pair_tables_right_count: usize,
     pub pair_tables_right_bytes: u64,
 }
 
@@ -332,19 +333,22 @@ impl<const K: usize, const N: usize> Graph<K, N> {
         let payloads_bytes = payload_capacity as u64 * N as u64;
 
         // perm_to_sig: lightweight (4B per permutation)
-        let mut row_perm_to_sig_bytes = 0u64;
+        let mut perm_to_sig_bytes = 0u64;
         for idx in &self.row_indexes {
-            row_perm_to_sig_bytes += (idx.perm_to_sig.capacity() * std::mem::size_of::<SigId>()) as u64;
+            perm_to_sig_bytes += (idx.perm_to_sig.capacity() * std::mem::size_of::<SigId>()) as u64;
         }
-        let mut col_perm_to_sig_bytes = 0u64;
         for idx in &self.col_indexes {
-            col_perm_to_sig_bytes += (idx.perm_to_sig.capacity() * std::mem::size_of::<SigId>()) as u64;
+            perm_to_sig_bytes += (idx.perm_to_sig.capacity() * std::mem::size_of::<SigId>()) as u64;
         }
 
         // Pair tables
+        let mut pair_left_count = 0usize;
         let mut pair_left_bytes = 0u64;
+        let mut pair_right_count = 0usize;
         let mut pair_right_bytes = 0u64;
         for pair in &self.pair_tables {
+            pair_left_count += pair.left_sig_to_right.len();
+            pair_right_count += pair.right_sig_to_left.len();
             for bs in &pair.left_sig_to_right {
                 pair_left_bytes += bs.memory_bytes() as u64;
             }
@@ -356,9 +360,10 @@ impl<const K: usize, const N: usize> Graph<K, N> {
         GraphMemoryBreakdown {
             nodes_bytes,
             payloads_bytes,
-            row_perm_to_sig_bytes,
-            col_perm_to_sig_bytes,
+            perm_to_sig_bytes,
+            pair_tables_left_count: pair_left_count,
             pair_tables_left_bytes: pair_left_bytes,
+            pair_tables_right_count: pair_right_count,
             pair_tables_right_bytes: pair_right_bytes,
         }
     }

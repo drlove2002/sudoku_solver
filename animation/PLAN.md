@@ -1,9 +1,9 @@
 # Animation Implementation Plan — Phases 2–6
 
-## Data Issues to Fix First
+## ✅ DONE: Data fixes
 
-### 1. `DRY_RUN_SOLUTION` is invalid
-Duplicate digits in 5 rows and 10 column positions. Replace in `animation/puzzle.py`:
+### 1. `DRY_RUN_SOLUTION` fixed
+Replaced invalid solution with verified solver output:
 
 ```python
 DRY_RUN_SOLUTION: List[List[int]] = [
@@ -19,181 +19,194 @@ DRY_RUN_SOLUTION: List[List[int]] = [
 ]
 ```
 
-### 2. Add `DRY_RUN_HEURISTIC_BOARD`
-Post-heuristics board (12 cells filled by Phase 2):
+### 2. `DRY_RUN_HEURISTIC_BOARD` added
+Post-heuristics board (12 cells filled by Phase 2).
 
-```python
-DRY_RUN_HEURISTIC_BOARD: List[List[int]] = [
-    [8, 0, 5, 0, 0, 7, 3, 9, 0],
-    [0, 0, 0, 9, 4, 3, 0, 0, 5],
-    [0, 0, 3, 0, 8, 5, 0, 7, 0],
-    [0, 0, 0, 5, 9, 2, 4, 6, 8],
-    [5, 6, 0, 0, 3, 0, 0, 1, 0],
-    [0, 8, 0, 0, 6, 1, 5, 3, 0],
-    [0, 0, 8, 0, 7, 0, 6, 5, 0],
-    [0, 5, 0, 3, 0, 0, 9, 0, 0],
-    [1, 0, 0, 0, 5, 0, 0, 0, 0],
-]
+### 3. Graph stats corrected
+- Pre-prune: **205 nodes, 1623 edges**
+- Post-local-prune: **121 nodes, 580 edges** (84 removed in 3 rounds: 59→23→2)
+- Post-exact-prune: ~10 supported nodes, 106 configurations
+
+### 4. `results/graph.json` regenerated
+With heuristics enabled via `--visualize` flag.
+
+
+## ✅ DONE: Manim — Phase 1 (Mask Init)
+
+**File:** `animation/scenes/phase1_mask_init.py` — COMPLETE
+
+## ✅ DONE: Manim — Phase 5 (Local Support Pruning)
+
+**File:** `animation/scenes/phase5_pruning.py` — COMPLETE
+**Component:** `animation/components/graphviz.py` — `PermutationGraph` class
+
+Shows full graph (205 nodes, 1623 edges), 3 pruning rounds with red pulse→fade cascade, live node/edge counters, summary card.
+
+## ✅ DONE: HTML Visualizer — Phases 5 & 6
+
+**File:** `tools/visualizer/graph.html` — ~2650 lines
+
+### Phase 5: Pruning Simulator
+- ▶ Run All Rounds / ⏭ Step Round / ↺ Reset
+- Round timeline bars (proportional to removals, clickable)
+- Support Inspector — click any node, see per-minigrid alive/dead counts
+- Heatmap by Death Round toggle (red→orange→yellow)
+- Focus Minigrid dropdown (isolates one mg + its neighbors)
+- Cascade warnings + support-chain arrows
+- Survivor mode toggle
+- Dead edges hidden, dead nodes offscreen or display:none
+- All timeouts guarded by `pruningRunToken`
+- Reset fully clears all visual state
+
+### Phase 6: Extraction Simulator
+- Initialize Domains button — builds domain grid (3×3), candidate strip
+- ⏭ Step button — state machine: MRV → candidate → assign+propagate+forced cascade
+- Auto Solve — full backtracking search, 20000 step cap
+- ← Undo button — restores previous state via domainHistory
+- ↺ Reset button — clears all extraction state, compacts survivors, restores edges
+- Domain grid renders 3×3 counts per minigrid (green ≤3, yellow 4-10, default 11+)
+- Domain shrink animation (yellow flash on changed cells)
+- Candidate strip shows sorted permutation IDs per selected minigrid
+- Propagation wave — sequential orange pulses through changed minigrids (Step mode)
+- Node death: red pulse → CSS opacity fade → display:none (300ms total)
+- Causal edges only for shrinking domains (N→M, M>0), not emptied (contradiction)
+- Forced singletons auto-assigned with green glow, chain reaction
+- Contradiction: domain cell red shake, cause-node red highlight, auto-undo
+- Search tree: unicode ├── └── per decision level, forced entries marked
+- Solution board: 9×9 table with given digits white, solved blue, block borders
+- SOLUTION event: 6-phase cinematic reveal (pulse→fade→hide→reveal→edges→board)
+
+### Architecture (Phase 6)
+```
+solverNextEvent()     — pure state machine, no DOM
+animateSolverEvent()  — DOM renderer, no state mutation
+advanceSolver()       — orchestrator, calls both
 ```
 
-### 3. Graph stats in docstrings are wrong
-Actual numbers from solver (with heuristics):
-- Pre-prune: **205 nodes, 1623 edges**
-- Post-local-prune: **121 nodes, 580 edges**
-- Post-exact-prune: ~10 supported nodes, 106 configurations
-- Animation uses post-local-prune graph (tractable to visualize, clear cascade)
+Step and Auto share `advanceSolver()`. Events: MRV → CANDIDATE → PROPAGATE → FORCED × N → CONTRADICTION or SOLUTION.
 
-### 4. Regenerate `results/graph.json`
-Already done — `cargo run -- release --bin sudoku_solver -- /tmp/dry_run_ws.txt --visualize`
+### Node layout
+- `node.originalX`, `node.originalY` — immutable, set at graph creation
+- `node.x`, `node.y` — mutable, used for repacking and edge drawing
+- `repackMinigrid()` and `relayoutSurvivors()` sort by `originalX` to preserve perm ordering
+- Reset and Initialize compact survivors evenly (no "weird gaps" from sparse rows)
 
----
 
-## Phase 2: Deterministic Deduction
+## TODO: Manim — Phases 2, 3, 4, 6
 
-**Complexity:** Moderate  
-**File:** `animation/scenes/phase2_deduction.py`
+These are still stubs in `animation/scenes/phaseN_*.py`.
 
-### Visual Flow
-1. Board appears with 29 given digits (reuse `SudokuBoard`)
-2. Text label: `Naked Singles` — iterate empty cells, show `allowed[r][c]` as bitmask, highlight cells with popcount == 1, fill them
-3. Text label: `Hidden Singles` — for each row/col/box, highlight digit in exactly one empty cell
-4. Loop: Naked → Hidden → Naked → ... until quiescence
-5. Counter tracking cells filled (reaches 12)
-6. Final board with 41 cells
+| Phase | What it does | Scene file | Status |
+|-------|-------------|------------|--------|
+| 1 | Mask initialization | `phase1_mask_init.py` | ✅ DONE |
+| 2 | Deterministic deduction (naked/hidden singles) | `phase2_deduction.py` | 🟡 PLANNED (this doc) |
+| 3 | Permutation generation (DFS + MRV) | `phase3_permutations.py` | 🔴 STUB |
+| 4 | Graph construction (compatibility edges) | `phase4_graph.py` | 🔴 STUB |
+| 5 | Local support pruning | `phase5_pruning.py` | ✅ DONE |
+| 6 | Extraction (MRV + propagation + board) | `phase6_extraction.py` | 🔴 STUB |
 
-### Implementation
-Pre-compute exact fill order by porting `propagate_constraints` logic to Python. Produces sequence of `(r, c, digit, reason)` tuples to animate.
+The HTML visualizer (`tools/visualizer/graph.html`) fully covers Phases 5 and 6
+interactively. The Manim scenes for Phase 2–4 and 6 are not yet implemented.
 
-**Key challenges:** Need minimal Python port of heuristics counter logic (~150 lines). Deterministic and verifiable against Rust output.
 
----
+## 🟡 PLANNED: Manim — Phase 2 (Deduction) — v2
 
-## Phase 3: Permutation Generation
+### Goal
 
-**Complexity:** High  
-**File:** `animation/scenes/phase3_permutations.py`
+Replace the current 12-fill illustrative scene with one that **shows the actual
+Rust algorithm in action** — pencil marks, queue, pair-scan rounds, and the
+constraint-propagation cascade.
 
-### Visual Flow
-1. Board zooms out, camera focuses on minigrid 1 (top-center) — only 4 permutations
-2. 3×3 minigrid blown up — shows existing digits (9,4,3) and 6 empty cells
-3. DFS tree on right side: nodes = partial assignments, edges = digit choices
-4. MRV highlight: "cell (r,c) has only 2 candidates → try 6"
-5. Dead end shown as red X on tree node, backtrack arrow curves back
-6. Success: 4 complete permutations appear as small 3×3 grids
-7. Fast-forward: minigrids 0-8 flash with their permutation counts (24,4,6,18,3,4,41,8,13)
+### Exact fill trace (from `propagate_constraints`)
 
-### Implementation
-- DFS tree layout — manual node/edge positioning in `Tree` or raw `Dot`/`Line`
-- Pre-compute or construct illustrative search path for minigrid 1
-- Use MRV heuristic to pick cells (same as Rust `find_best_cell`)
-- Tree can be simplified — show key decision points, not every branch
+```
+FILL  1: (2,5)=5   hidden single (row 2, d=5)
+FILL  2: (3,7)=6   hidden single (row 3, d=6)
+FILL  3: (5,6)=5   hidden single (row 5, d=5)
+FILL  4: (5,1)=8   hidden single (col 1, d=8)
+FILL  5: (0,2)=5   hidden single (box 0, d=5)
+--- queue drains, pair scan round 1 runs, 1+ pair(s) push new singles ---
+FILL  6: (6,7)=5   pair-driven single
+FILL  7: (8,4)=5   pair-driven single
+FILL  8: (3,5)=2   pair-driven single
+FILL  9: (3,4)=9   pair-driven single
+FILL 10: (4,4)=3   pair-driven single
+FILL 11: (1,5)=3   pair-driven single
+FILL 12: (0,6)=3   pair-driven single
+--- quiescence: 12/52 cells filled, 40 empty, pairs+ singles exhausted ---
+```
 
-**Key challenges:** Tree layout for 6-empty-cell minigrid could be deep. Simplify to illustrative path showing concepts (branching, backtracking, complete perms).
+### Algorithm story (what the viewer sees)
 
----
+1. **Initialize** — every empty cell shows pencil marks = `allowed[r][c]`
+   (computed from conflict masks built in Phase 1).
+2. **Queue seeds** — the Rust code seeds hidden singles from
+   `row_count[r][d] == 1` etc. We visualize this as a "scan" pulse across
+   rows, cols, and boxes, with yellow dots landing on the 5 hidden-single cells.
+3. **Singles cascade (wave A, fills 1–5)** — for each fill, in Rust order:
+   - Highlight the row/col/box where `count == 1` (the "house" enforcing the digit)
+   - Erase digit `d` from pencil marks of all 20 peer cells in that house
+     (this is `remove_digit` from the propagation loop)
+   - Place digit `d`, remove the now-stale pencil marks from the filled cell
+   - The same `remove_digit` calls may push new naked singles — show them
+     appearing in the queue panel
+4. **Pair scan round** — banner: "queue empty → scan pairs → enqueue new singles".
+   No specific pair is shown in detail; the focus is the **transition**:
+   "pairs reduced options, that surfaced new forced singles."
+5. **Singles cascade (wave B, fills 6–12)** — same per-fill treatment, but
+   color the digit **orange** instead of yellow to mark "pair-driven".
+6. **Quiescence** — banner: "12/52 filled → 40 cells still ambiguous →
+   backtracking required." Side-by-side before/after comparison.
 
-## Phase 4: Graph Construction
+### New / updated components
 
-**Complexity:** High  
-**File:** `animation/scenes/phase4_graph.py`  
-**New component:** `animation/components/graphviz.py`
+| File | Change |
+|------|--------|
+| `animation/puzzle.py` | Add `PRECOMPUTED_TRACE` — list of `(r, c, d, technique, house)` tuples (computed once, embedded) |
+| `animation/components/board.py` | Add `set_pencil_marks(allowed)`, `erase_pencil_mark(r, c, d)`, `clear_pencil_marks(r, c)` |
+| `animation/components/state_panel.py` | **NEW** — side panel showing queue contents + pair-round counter + fill count |
+| `animation/scenes/phase2_deduction.py` | Full rewrite using new components + the trace |
 
-### Visual Flow
-1. Render 121 nodes as colored dots in 3×3 cluster layout (one group per minigrid)
-2. Title: `Compatibility Graph: 121 nodes, 580 edges`
-3. Edge creation sweep through minigrid pairs:
-   - Row-related (e.g., MG0-MG1): horizontal edges
-   - Column-related (e.g., MG0-MG3): vertical edges
-4. Build edges gradually, coloring by relation type
-5. Final graph: all 580 edges visible, stats displayed
+### Build milestones (render+review after each)
 
-### New Component: `PermutationGraph`
-- Nodes: colored dots grouped by minigrid in 3×3 spatial grid
-- Edges: thin semitransparent lines between compatible nodes
-- Methods: `add_edge()`, `remove_node()`, `pulse_node()`, `fade_edge()`
-- Reads from `results/graph.json`
+1. **M1 — Pencil marks**: render empty board with allowed[r][c] pencil marks.
+   Verify: marks are correct, font size is legible, no overlap with grid.
+2. **M2 — Single fill animation**: pick fill 1 ((2,5)=5). Highlight row 2,
+   show count==1 for digit 5, erase "5" from row 2's pencil marks, place "5".
+   Verify: erase step is visible, count==1 visual is clear.
+3. **M3 — Wave A loop**: render all 5 hidden singles in sequence with
+   the same per-fill treatment.
+4. **M4 — Queue + state panel**: add the side panel, show queue growing
+   and draining as singles are filled.
+5. **M5 — Pair scan banner + Wave B**: insert the banner animation,
+   then render fills 6–12 in orange.
+6. **M6 — Quiescence + finale**: 12/52 counter, side-by-side comparison.
 
-**Key challenges:** 580 edges is dense — use 10-20% opacity to avoid visual noise. Nodes within each cluster spread evenly.
+### Verification per milestone
 
----
+- `manim -pqh animation/scenes/phase2_deduction.py Phase2Deduction`
+  (480p15 preview) after each milestone
+- `cargo test` (must stay green; no Rust changes)
+- Visual checks: pencil marks readable, highlights clearly attributed
+  to a row/col/box, queue panel updates match the fill order
 
-## Phase 5: Local Support Pruning
+### What is NOT in scope
 
-**Complexity:** Medium  
-**File:** `animation/scenes/phase5_pruning.py`
+- Showing naked-pair / hidden-pair / pointing-pair / claiming-pair internals
+  in detail. The scene treats "pair round" as a single banner moment.
+  Detailed pair visualization is a future enhancement.
+- No Rust changes. All algorithm fidelity comes from the precomputed trace.
 
-### Visual Flow
-1. Graph from Phase 4 (121 nodes, 580 edges)
-2. Iterative pruning: for each node, check compatible neighbor in every related minigrid
-3. Unsupported nodes pulse red, then fade — connected edges also fade
-4. Cascade: node A drops → node B loses last neighbor → node B drops
-5. Counter: "84 removed"
-6. Final graph: 37 nodes after local pruning
-7. Brief skip to exact pruning: "Exact global support → 27 more removed, 10 supported, 106 configurations"
 
-### Implementation
-Pre-compute what gets removed in each iteration using graph.json + local pruning algorithm. Animate in rounds.
+## Deliverables summary
 
----
-
-## Phase 6: Extraction
-
-**Complexity:** Medium  
-**File:** `animation/scenes/phase6_extraction.py`
-
-### Visual Flow
-1. Pruned graph on one side, board on the other
-2. MRV selection: highlight minigrid with fewest remaining permutations
-3. Assign one permutation → propagate: other minigrid domains shrink
-4. Domain size counters update in real-time
-5. After all 9 assigned: board reconstruction animation (cells fill in)
-6. Show final solution board
-7. Label: `Puzzle: 106 Solutions (Ambiguous)`
-8. Fast-forward: other solutions flash briefly
-
-### Implementation
-Trace one specific configuration assignment from solver. Animate each step: pick minigrid → assign perm → propagate → update domains.
-
----
-
-## New Components
-
-| Component | File | Purpose |
-|-----------|------|---------|
-| `PermutationGraph` | `animation/components/graphviz.py` | Nodes as dots, edges as lines, grouped by minigrid, add/remove/pulse animations |
-| `DFSTree` | `animation/scenes/phase3_permutations.py` (inline) | DFS tree for Phase 3 — too custom to extract as component |
-
----
-
-## Risks / Open Questions
-
-1. **Heuristics fill order**: Pre-compute via Python port of `propagate_constraints`. Deterministic, verifiable against Rust output (12 cells, same board).
-
-2. **DFS tree for minigrid 1**: Actual path depends on MRV choices. Use illustrative path showing key concepts (branching, backtracking, complete perms) rather than exact internal state.
-
-3. **580 edges on screen**: Partial opacity (10-20%) or fade edges not currently in focus.
-
-4. **`results/graph.json`**: Currently 1623 edges (pre-local-prune). Need Python analysis script to pre-compute local pruning iteration state for Phase 5.
-
----
-
-## Verification
-
-- `manim -ql` (low quality) for each scene to verify layout and timing
-- `cargo test` to confirm solver still works
-- Visual inspection of rendered MP4s
-
----
-
-## Execution Order
-
-1. Fix `puzzle.py` data (solution + heuristic board)
-2. Write Python heuristics script for Phase 2 fill order
-3. Phase 2 implementation
-4. Phase 3 implementation (with inline DFS tree)
-5. `graphviz.py` component
-6. Phase 4 implementation
-7. Python analysis script for pruning iterations
-8. Phase 5 implementation
-9. Phase 6 implementation
-10. Render all, verify
+| Deliverable | Status | Lines |
+|-------------|--------|-------|
+| `animation/components/board.py` | ✅ DONE | Phase 1 |
+| `animation/components/bitmask.py` | ✅ DONE | Phase 1 |
+| `animation/components/graphviz.py` | ✅ DONE | ~270 |
+| `animation/puzzle.py` | ✅ DONE (data fixed) | ~60 |
+| `animation/scenes/phase1_mask_init.py` | ✅ DONE | Phase 1 |
+| `animation/scenes/phase5_pruning.py` | ✅ DONE | ~150 |
+| `tools/visualizer/graph.html` | ✅ DONE (Phase 5 + 6) | ~2650 |
+| `animation/PLAN.md` | ✅ DONE (this file) | — |

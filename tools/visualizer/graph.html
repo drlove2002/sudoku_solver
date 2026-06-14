@@ -492,6 +492,115 @@
         .node-unsupported { stroke: #ef4444 !important; stroke-width: 1 !important; opacity: 0.4 !important; transition: all 0.4s; }
         @keyframes flashUnsupported { 0%,100% { filter: none; } 50% { filter: drop-shadow(0 0 12px #ef4444); } }
         .mg-flash-unsupported { animation: flashUnsupported 0.6s ease-in-out 2; }
+        .node-removing {
+            opacity: 0 !important;
+            transition: opacity 0.3s ease, transform 0.3s ease;
+            transform: scale(0.3);
+        }
+        .node-forced {
+            stroke: #10b981 !important;
+            stroke-width: 3 !important;
+            filter: drop-shadow(0 0 8px rgba(16,185,129,0.5));
+            transition: all 0.3s ease;
+        }
+        .node-trial {
+            stroke: #fbbf24 !important;
+            stroke-width: 3 !important;
+            filter: drop-shadow(0 0 12px rgba(251,191,36,0.6));
+            transition: all 0.2s ease;
+        }
+        .node-alive-candidate {
+            stroke: rgba(255,255,255,0.6) !important;
+            stroke-width: 2 !important;
+        }
+        .causal-edge {
+            stroke: #f97316 !important;
+            stroke-width: 1.5 !important;
+            stroke-opacity: 0.6 !important;
+            transition: stroke-opacity 0.4s ease;
+        }
+
+        #extraction-section {
+            background: #1a1f38;
+            border-radius: 8px;
+            padding: 16px;
+            margin-top: 8px;
+        }
+        #domains-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 4px;
+            margin: 8px 0;
+        }
+        .domain-cell {
+            background: #2d3448;
+            color: #e8e8e8;
+            text-align: center;
+            padding: 8px 4px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+        .domain-cell.mrv-selected { background: #10b981; box-shadow: 0 0 12px rgba(16,185,129,0.5); }
+        .domain-cell.assigned { background: #fbbf24; color: #0a0e27; }
+        .domain-cell.contradiction { background: #ef4444; animation: flashUnsupported 0.4s ease-in-out 3; }
+        .domain-cell.domain-small { background: #065f46; }
+        .domain-cell.domain-medium { background: #854d0e; }
+        .domain-cell.shrinking {
+            animation: domainShrink 0.5s ease-out;
+        }
+        @keyframes contradictionShake {
+            0%,100% { transform: translateX(0); }
+            20% { transform: translateX(-4px); }
+            40% { transform: translateX(4px); }
+            60% { transform: translateX(-4px); }
+            80% { transform: translateX(4px); }
+        }
+        .domain-cell.shaking {
+            animation: contradictionShake 0.4s ease-in-out 2;
+        }
+        .domain-cell.contradiction {
+            background: #ef4444 !important;
+            animation: contradictionShake 0.4s ease-in-out 2, flashUnsupported 0.4s ease-in-out 3;
+        }
+        .node-contradiction-cause {
+            stroke: #ef4444 !important;
+            stroke-width: 5 !important;
+            filter: drop-shadow(0 0 16px rgba(239,68,68,0.8));
+            transition: all 0.3s ease;
+        }
+        @keyframes domainShrink {
+            0% { transform: scale(1.15); background: #fbbf24; }
+            100% { transform: scale(1); background: inherit; }
+        }
+        #extraction-status {
+            font-size: 12px;
+            color: #9ca3af;
+            margin: 4px 0;
+            min-height: 18px;
+        }
+        #search-tree {
+            font-size: 10px;
+            color: #6b7280;
+            margin: 4px 0;
+            max-height: 120px;
+            overflow-y: auto;
+            font-family: monospace;
+            white-space: pre;
+            line-height: 1.4;
+        }
+        .solution-board-cell {
+            width: 28px;
+            height: 28px;
+            text-align: center;
+            font-family: monospace;
+            font-size: 14px;
+            font-weight: 600;
+            border: 1px solid #1e2642;
+        }
+        .solution-board-cell.given { color: #e8e8e8; }
+        .solution-board-cell.solved { color: #60a5fa; }
     </style>
 </head>
 <body>
@@ -591,17 +700,30 @@
                         <label class="control-label">Focus Minigrid</label>
                         <select id="focus-mg" style="width:100%;background:#2d3448;color:#e8e8e8;border:1px solid #3b82f6;padding:6px;border-radius:4px;font-size:12px">
                             <option value="-1">Show All</option>
-                            <option value="0">MG0 (top-left)</option>
-                            <option value="1">MG1 (top-center)</option>
-                            <option value="2">MG2 (top-right)</option>
-                            <option value="3">MG3 (center-left)</option>
-                            <option value="4">MG4 (center)</option>
-                            <option value="5">MG5 (center-right)</option>
-                            <option value="6">MG6 (bottom-left)</option>
-                            <option value="7">MG7 (bottom-center)</option>
-                            <option value="8">MG8 (bottom-right)</option>
+                            <option value="0">MG1 (top-left)</option>
+                            <option value="1">MG2 (top-center)</option>
+                            <option value="2">MG3 (top-right)</option>
+                            <option value="3">MG4 (center-left)</option>
+                            <option value="4">MG5 (center)</option>
+                            <option value="5">MG6 (center-right)</option>
+                            <option value="6">MG7 (bottom-left)</option>
+                            <option value="7">MG8 (bottom-center)</option>
+                            <option value="8">MG9 (bottom-right)</option>
                         </select>
                     </div>
+                </div>
+                <div id="extraction-section">
+                    <h3 style="font-size:13px;font-weight:600;color:#e8e8e8;margin-bottom:12px;text-transform:uppercase;letter-spacing:1px">Phase 6: Extraction</h3>
+                    <div id="domains-grid"></div>
+                    <div id="candidate-strip" style="font-size:10px;color:#9ca3af;margin:4px 0;min-height:16px;word-break:break-all"></div>
+                    <div id="extraction-status"></div>
+                    <div id="search-tree"></div>
+                    <button id="extract-init">Initialize Domains</button>
+                    <button id="extract-step">Step</button>
+                    <button id="extract-auto">Auto Solve</button>
+                    <button id="extract-reset">Reset</button>
+                    <button id="extract-undo">← Undo</button>
+                    <div id="solution-board-container" style="margin-top:8px"></div>
                 </div>
             </div>
         </div>
@@ -650,6 +772,17 @@
             rounds: [],
             currentRound: 0,
             running: false,
+        };
+
+        let extractionState = {
+            domains: new Map(),       // mg_id → Set(perm_id)
+            assignments: new Map(),   // mg_id → perm_id | null
+            domainHistory: [],
+            solutions: [],
+            currentMg: null,
+            currentCandidate: null,
+            stepMode: null,           // null | 'mrv' | 'candidate' | 'propagate' | 'done'
+            finished: false,
         };
 
         // Zoom behavior
@@ -751,6 +884,8 @@
                 levelNodes.forEach((node, i) => {
                     node.x = startX + i * config.nodeSpacing;
                     node.y = y;
+                    node.originalX = node.x;
+                    node.originalY = node.y;
                     node.levelIndex = levelIndex;
                 });
 
@@ -761,7 +896,7 @@
                         .attr('class', 'level-label')
                         .attr('x', d => d.x)
                         .attr('y', d => d.y + 4)
-                        .text(`MG ${mg}`);
+                        .text(`MG ${mg + 1}`);
                 }
             });
 
@@ -801,7 +936,7 @@
             nodes.append('text')
                 .attr('class', 'node-text')
                 .attr('dy', 4)
-                .text(d => `m${d.minigrid}p${d.perm_id}`);
+                .text(d => `m${d.minigrid + 1}p${d.perm_id}`);
 
             // Update legend
             updateLegend(data);
@@ -855,6 +990,8 @@
                 levelNodes.forEach((node, i) => {
                     node.x = startX + i * config.nodeSpacing;
                     node.y = y;
+                    node.originalX = node.x;
+                    node.originalY = node.y;
                 });
 
                 // Store label data
@@ -881,6 +1018,11 @@
 
         function updateEdges() {
             edgesGroup.selectAll('path')
+                .filter(function(e) {
+                    const srcVisible = d3.selectAll('.node-group').filter(d => d.id === e.source.id).style('display') !== 'none';
+                    const tgtVisible = d3.selectAll('.node-group').filter(d => d.id === e.target.id).style('display') !== 'none';
+                    return srcVisible && tgtVisible;
+                })
                 .transition()
                 .duration(300)
                 .attr('d', d => getEdgePath(d));
@@ -956,7 +1098,7 @@
                     const icon = count > 0 ? '✓' : '✗';
                     const color = count > 0 ? '#10b981' : '#ef4444';
                     html += `<div style="margin:4px 0;display:flex;justify-content:space-between">
-                        <span>MG${otherMg}</span>
+                        <span>MG${otherMg + 1}</span>
                         <span style="color:${color}">${icon} ${count} alive</span>
                     </div>`;
                 }
@@ -972,7 +1114,7 @@
                     }
                 }
                 html += `<div style="margin-top:10px;padding-top:10px;border-top:1px solid #1e2642;color:#ef4444">
-                    Died in Round ${deathRound} — MG${zeroMg} had 0 alive partners
+                    Died in Round ${deathRound} — MG${zeroMg + 1} had 0 alive partners
                 </div>`;
 
                 // Flash the unsupported minigrid
@@ -1052,14 +1194,14 @@
                         const count = supports[otherMg];
                         const icon = count > 0 ? '✓' : '✗';
                         const color = count > 0 ? '#10b981' : '#ef4444';
-                        supportHtml += `<div class="tooltip-stat"><span class="tooltip-stat-label">MG${otherMg}</span><span class="tooltip-stat-value" style="color:${color}">${icon} ${count}</span></div>`;
+                        supportHtml += `<div class="tooltip-stat"><span class="tooltip-stat-label">MG${otherMg + 1}</span><span class="tooltip-stat-value" style="color:${color}">${icon} ${count}</span></div>`;
                     }
                     supportHtml += '</div>';
                 }
             }
 
             tooltip.innerHTML = `
-                <div class="tooltip-header">Minigrid ${d.minigrid} – Permutation ${d.perm_id}</div>
+                <div class="tooltip-header">Minigrid ${d.minigrid + 1} – Permutation ${d.perm_id}</div>
                 <div class="tooltip-section">
                     <div class="tooltip-stat">
                         <span class="tooltip-stat-label">Position:</span>
@@ -1130,7 +1272,7 @@
 
                 const node = data.nodes.find(n => n.minigrid === mg);
                 const label = document.createElement('span');
-                label.textContent = `MG ${mg} (${node.board_position})`;
+                label.textContent = `MG ${mg + 1} (${node.board_position})`;
 
                 item.appendChild(colorBox);
                 item.appendChild(label);
@@ -1162,6 +1304,791 @@
             svg.transition()
                 .duration(750)
                 .call(zoom.transform, d3.zoomIdentity.translate(translateX, translateY).scale(scale));
+        }
+
+        // ── Phase 6: Extraction Simulator ───────────────────────────────────────────────
+        
+        const GIVEN_CELLS = new Set([
+            "0,0","0,5","0,7","1,3","1,4","1,8","2,2","2,4","2,7",
+            "3,3","3,6","3,8","4,0","4,1","4,7","5,4","5,5","5,7",
+            "6,2","6,4","6,6","7,1","7,3","7,6","8,0",
+        ]);
+
+        const SOLVER_EVENT = {
+            MRV: 'mrv',
+            CANDIDATE: 'candidate',
+            PROPAGATE: 'propagate',
+            FORCED: 'forced',
+            CONTRADICTION: 'contradiction',
+            SOLUTION: 'solution',
+            DONE: 'done',
+        };
+
+        function initDomains() {
+            if (pruningState.rounds.length === 0) {
+                document.getElementById('extraction-status').textContent = 'Run Phase 5 pruning first';
+                return;
+            }
+            extractionState = {
+                domains: new Map(),
+                assignments: new Map(),
+                domainHistory: [],
+                solutions: [],
+                currentMg: null,
+                currentCandidate: null,
+                stepMode: null,
+                finished: false,
+            };
+            for (let mg = 0; mg < 9; mg++) {
+                extractionState.assignments.set(mg, null);
+                const alivePerms = new Set();
+                graphData.nodes.forEach(n => {
+                    if (n.minigrid === mg && pruningState.alive.get(n.id)) {
+                        alivePerms.add(n.perm_id);
+                    }
+                });
+                extractionState.domains.set(mg, alivePerms);
+            }
+            renderDomainsGrid();
+            renderCandidateStrip(null);
+            document.getElementById('extraction-status').textContent = 'Domains initialized – click Step';
+            document.getElementById('search-tree').textContent = '';
+            clearExtractionHighlights();
+            // Nuclear cleanup: remove any lingering causal-edge elements and restore edges
+            d3.selectAll('.causal-edge').remove();
+            d3.selectAll('.death-label').remove();
+            edgesGroup.selectAll('path').style('display', null).classed('dead-edge', false).classed('causal-edge', false);
+            // Hide edges connected to hidden nodes
+            edgesGroup.selectAll('path').each(function(e) {
+                const srcVisible = d3.selectAll('.node-group').filter(d => d.id === e.source.id).style('display') !== 'none';
+                const tgtVisible = d3.selectAll('.node-group').filter(d => d.id === e.target.id).style('display') !== 'none';
+                if (!srcVisible || !tgtVisible) {
+                    d3.select(this).style('display', 'none');
+                }
+            });
+            d3.selectAll('.node-group').each(function(d) {
+                d3.select(this).style('display', pruningState.alive.get(d.id) ? null : 'none');
+            }).classed('node-removing', false).classed('faded', false);
+            nodesGroup.selectAll('.node-circle').classed('node-trial', false).classed('node-forced', false).classed('node-alive-candidate', false).classed('node-removing', false);
+            // Compact alive survivors evenly within their minigrid rows
+            const svgWidthInit = svg.node().clientWidth;
+            const centerXInit = svgWidthInit / 2;
+            for (let mg = 0; mg < 9; mg++) {
+                const survivors = graphData.nodes.filter(n =>
+                    n.minigrid === mg && pruningState.alive.get(n.id)
+                );
+                survivors.sort((a, b) => (a.originalX || a.x) - (b.originalX || b.x));
+                const y = config.topMargin + mg * config.levelSpacing;
+                const totalWidth = Math.max(0, (survivors.length - 1) * config.nodeSpacing);
+                const startX = survivors.length <= 1 ? centerXInit : centerXInit - totalWidth / 2;
+                survivors.forEach((node, i) => {
+                    node.x = startX + i * config.nodeSpacing;
+                    node.y = y;
+                });
+            }
+            nodesGroup.selectAll('g')
+                .filter(d => pruningState.alive.get(d.id))
+                .transition().duration(300)
+                .attr('transform', d => `translate(${d.x}, ${d.y})`);
+        }
+
+        function renderDomainsGrid(changedMgs) {
+            const grid = document.getElementById('domains-grid');
+            grid.innerHTML = '';
+            const changedSet = new Set(changedMgs ? changedMgs.map(c => c.mg) : []);
+            for (let mg = 0; mg < 9; mg++) {
+                const cell = document.createElement('div');
+                cell.className = 'domain-cell';
+                cell.id = `domain-mg${mg + 1}`;
+                const size = extractionState.domains.get(mg).size;
+                const assigned = extractionState.assignments.get(mg);
+                cell.textContent = assigned !== null ? `P${assigned}` : (size === 0 ? '0' : size);
+                if (assigned !== null) {
+                    cell.classList.add('assigned');
+                } else if (size === 0) {
+                    cell.classList.add('contradiction');
+                } else if (size <= 3) {
+                    cell.classList.add('domain-small');
+                } else if (size <= 10) {
+                    cell.classList.add('domain-medium');
+                }
+                if (changedSet.has(mg)) cell.classList.add('shrinking');
+                const label = document.createElement('div');
+                label.style.cssText = 'font-size:9px;color:#6b7280;margin-top:2px';
+                label.textContent = `MG${mg + 1}`;
+                cell.appendChild(label);
+                grid.appendChild(cell);
+            }
+        }
+
+        // candidate-strip: shows remaining permutation IDs for the focused minigrid
+        function renderCandidateStrip(mg) {
+            const strip = document.getElementById('candidate-strip');
+            if (mg === null) { strip.textContent = ''; return; }
+            const domain = extractionState.domains.get(mg);
+            const perms = Array.from(domain).sort((a,b) => a-b);
+            if (perms.length === 0) {
+                strip.textContent = 'No candidates';
+                strip.style.color = '#ef4444';
+                return;
+            }
+            strip.style.color = '#9ca3af';
+            const current = extractionState.currentCandidate;
+            if (current !== null) {
+                strip.innerHTML = perms.map(p => {
+                    if (p === current) return `<span style="color:#fbbf24;font-weight:600">P${p}</span>`;
+                    return `<span>P${p}</span>`;
+                }).join(' ');
+            } else {
+                strip.textContent = perms.map(p => `P${p}`).join(' ');
+            }
+        }
+
+        function selectMRV() {
+            let bestMg = null;
+            let bestSize = Infinity;
+            for (let mg = 0; mg < 9; mg++) {
+                if (extractionState.assignments.get(mg) !== null) continue;
+                const size = extractionState.domains.get(mg).size;
+                if (size === 0) return null; // contradiction
+                if (size < bestSize) {
+                    bestSize = size;
+                    bestMg = mg;
+                }
+            }
+            if (bestMg === null) return null; // all assigned
+            return bestMg;
+        }
+
+        function getNodeId(mg, perm) {
+            return `mg${mg}_p${perm}`;
+        }
+
+        function snapshotExtractionState() {
+            const savedState = {};
+            for (let m = 0; m < 9; m++) {
+                savedState[m] = {
+                    domain: new Set(extractionState.domains.get(m)),
+                    assignment: extractionState.assignments.get(m),
+                };
+            }
+            extractionState.domainHistory.push(savedState);
+        }
+
+
+
+        function propagateConstraints(mgId, permId) {
+            const nodeId = getNodeId(mgId, permId);
+            const changedMgs = [];
+            
+            for (let otherMg = 0; otherMg < 9; otherMg++) {
+                if (otherMg === mgId) continue;
+                if (pruningState.relations[mgId][otherMg] === 'Not') continue;
+                if (extractionState.assignments.get(otherMg) !== null) continue;
+                
+                const compatPerms = pruningState.compatible.get(nodeId)[otherMg];
+                const domain = extractionState.domains.get(otherMg);
+                const oldSize = domain.size;
+
+                if (!compatPerms) {
+                    domain.clear();
+                    changedMgs.push({ mg: otherMg, oldSize, newSize: 0 });
+                    continue;
+                }
+                // Intersect domain with compatible set
+                const toRemove = [];
+                for (const p of domain) {
+                    if (!compatPerms.has(p)) toRemove.push(p);
+                }
+                toRemove.forEach(p => domain.delete(p));
+                const newSize = domain.size;
+                if (newSize !== oldSize) {
+                    changedMgs.push({ mg: otherMg, oldSize, newSize });
+                }
+            }
+            return changedMgs;
+        }
+
+        async function removeIncompatibleNodes(changedMgs, assignedNodeId) {
+            const assignedNode = assignedNodeId ? graphData.nodes.find(n => n.id === assignedNodeId) : null;
+            const removedIds = new Set();
+            // Only draw causal edges for shrinking domains (N→M where M>0).
+            // Minigrids that drop to 0 are contradictions, not candidate eliminations.
+            const shrinkingMgs = changedMgs.filter(c => c.newSize > 0).map(c => c.mg);
+
+            for (const { mg } of changedMgs) {
+                const domain = extractionState.domains.get(mg);
+                const dying = [];
+
+                d3.selectAll('.node-group').each(function(d) {
+                    if (d.minigrid !== mg) return;
+                    if (!pruningState.alive.get(d.id)) return;
+                    if (!domain.has(d.perm_id)) dying.push(d);
+                });
+
+                dying.forEach(d => removedIds.add(d.id));
+
+                if (dying.length > 0) {
+                    // Pulse all dying nodes (brief red flash)
+                    d3.selectAll('.node-group')
+                        .filter(d => dying.some(x => x.id === d.id))
+                        .select('.node-circle')
+                        .classed('node-dying', true);
+
+                    // Hide nodes IMMEDIATELY for layout but keep visual pulse
+                    d3.selectAll('.node-group')
+                        .filter(d => dying.some(x => x.id === d.id))
+                        .classed('node-removing', true)
+                        .select('.node-circle')
+                        .classed('node-dying', false);
+
+                    // Wait for CSS transition to finish
+                    await sleep(300);
+
+                    // Now fully hide from DOM
+                    d3.selectAll('.node-group')
+                        .filter(d => dying.some(x => x.id === d.id))
+                        .style('display', 'none');
+                }
+            }
+
+            // Draw causal edges ONLY for shrinking (non-emptied) minigrids.
+            // Skip nodes in minigrids that went to 0 — those are contradiction victims,
+            // not candidates being actively eliminated by this propagation.
+            if (assignedNode && shrinkingMgs.length > 0) {
+                removedIds.forEach(id => {
+                    const removed = graphData.nodes.find(n => n.id === id);
+                    if (!removed) return;
+                    if (!shrinkingMgs.includes(removed.minigrid)) return;
+                    edgesGroup.append('path')
+                        .attr('class', 'causal-edge')
+                        .attr('d', getEdgePath({ source: assignedNode, target: removed }))
+                        .attr('stroke', '#f97316')
+                        .attr('stroke-width', 1.5)
+                        .attr('stroke-opacity', 0.7)
+                        .attr('stroke-dasharray', '4,3')
+                        .attr('fill', 'none');
+                });
+
+                // Let causal edges be visible briefly
+                await sleep(500);
+
+                // Fade and remove causal edges
+                edgesGroup.selectAll('.causal-edge')
+                    .transition().duration(300).attr('stroke-opacity', 0)
+                    .transition().duration(100).remove();
+                await sleep(400);
+            }
+
+            // Hide original compatibility edges that touch removed nodes
+            edgesGroup.selectAll('path').each(function(e) {
+                if (removedIds.has(e.source.id) || removedIds.has(e.target.id)) {
+                    d3.select(this).classed('dead-edge', true);
+                }
+            });
+
+            // Repack and wait for transition
+            repackMinigrid(changedMgs.map(c => c.mg));
+            await sleep(300);
+        }
+
+        function hasContradiction() {
+            for (let m = 0; m < 9; m++) {
+                if (extractionState.assignments.get(m) === null && extractionState.domains.get(m).size === 0) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        // ── SOLVER EVENT EMITTER (pure state machine — no DOM) ─────────
+        function solverNextEvent() {
+            if (extractionState.finished) return { type: SOLVER_EVENT.DONE };
+            
+            // MRV: pick next unassigned minigrid
+            if (extractionState.stepMode === null || extractionState.stepMode === 'propagate') {
+                const mg = selectMRV();
+                if (mg === null) {
+                    const allAssigned = Array.from(extractionState.assignments.values()).every(a => a !== null);
+                    if (allAssigned) return { type: SOLVER_EVENT.SOLUTION };
+                    return { type: SOLVER_EVENT.CONTRADICTION };
+                }
+                extractionState.currentMg = mg;
+                extractionState.stepMode = 'mrv';
+                return { type: SOLVER_EVENT.MRV, mg };
+            }
+            
+            // Pick candidate
+            if (extractionState.stepMode === 'mrv') {
+                const mg = extractionState.currentMg;
+                const domain = extractionState.domains.get(mg);
+                if (domain.size === 0) return { type: SOLVER_EVENT.CONTRADICTION };
+                const perm = domain.values().next().value;
+                extractionState.currentCandidate = perm;
+                extractionState.stepMode = 'candidate';
+                return { type: SOLVER_EVENT.CANDIDATE, mg, perm };
+            }
+            
+            // Apply assignment + propagate + forced cascade
+            if (extractionState.stepMode === 'candidate') {
+                const mg = extractionState.currentMg;
+                const perm = extractionState.currentCandidate;
+                snapshotExtractionState();
+                extractionState.domains.get(mg).clear();
+                extractionState.domains.get(mg).add(perm);
+                extractionState.assignments.set(mg, perm);
+                
+                const changed = propagateConstraints(mg, perm);
+                const events = [{ type: SOLVER_EVENT.PROPAGATE, mg, perm, changed }];
+                
+                // Forced singleton cascade
+                while (true) {
+                    const forcedMg = selectForcedSingleton();
+                    if (forcedMg === null) break;
+                    const forcedPerm = extractionState.domains.get(forcedMg).values().next().value;
+                    snapshotExtractionState();
+                    extractionState.domains.get(forcedMg).clear();
+                    extractionState.domains.get(forcedMg).add(forcedPerm);
+                    extractionState.assignments.set(forcedMg, forcedPerm);
+                    const forcedChanged = propagateConstraints(forcedMg, forcedPerm);
+                    events.push({ type: SOLVER_EVENT.FORCED, mg: forcedMg, perm: forcedPerm, changed: forcedChanged });
+                }
+                
+                // Check for contradiction
+                if (hasContradiction()) {
+                    // Unwind to before this decision
+                    while (extractionState.domainHistory.length > 0) {
+                        const prev = extractionState.domainHistory.pop();
+                        for (let m = 0; m < 9; m++) {
+                            extractionState.domains.set(m, prev[m].domain);
+                            extractionState.assignments.set(m, prev[m].assignment);
+                        }
+                        if (extractionState.assignments.get(mg) === null) break;
+                    }
+                    extractionState.domains.get(mg).delete(perm);
+                    extractionState.currentCandidate = null;
+                    extractionState.stepMode = 'mrv';
+                    events.push({ type: SOLVER_EVENT.CONTRADICTION, mg, perm });
+                    return events;
+                }
+                
+                if (Array.from(extractionState.assignments.values()).every(a => a !== null)) {
+                    extractionState.stepMode = 'propagate';
+                    extractionState.currentCandidate = null;
+                    events.push({ type: SOLVER_EVENT.SOLUTION });
+                    return events;
+                }
+                
+                extractionState.stepMode = 'propagate';
+                extractionState.currentCandidate = null;
+                return events;
+            }
+            
+            return { type: SOLVER_EVENT.DONE };
+        }
+
+        // ── ANIMATION PLAYER (DOM only — no solver state mutation) ─────
+        async function animateSolverEvent(event, { visualize = true } = {}) {
+            const status = document.getElementById('extraction-status');
+            
+            if (!visualize && event.type !== SOLVER_EVENT.SOLUTION) return;
+            
+            switch (event.type) {
+                case SOLVER_EVENT.MRV:
+                    status.textContent = `MRV → MG${event.mg + 1} (${extractionState.domains.get(event.mg).size} candidates)`;
+                    status.style.color = '#10b981';
+                    renderCandidateStrip(event.mg);
+                    document.querySelectorAll('.domain-cell').forEach(c => c.classList.remove('mrv-selected'));
+                    document.getElementById(`domain-mg${event.mg + 1}`)?.classList.add('mrv-selected');
+                    d3.selectAll('.node-group').each(function(d) {
+                        if (d.minigrid === event.mg && pruningState.alive.get(d.id) && extractionState.domains.get(event.mg).has(d.perm_id)) {
+                            d3.select(this).classed('highlighted', true).classed('faded', false);
+                            d3.select(this).select('.node-circle').classed('node-alive-candidate', true);
+                        } else {
+                            d3.select(this).classed('highlighted', false).classed('faded', true);
+                            d3.select(this).select('.node-circle').classed('node-alive-candidate', false);
+                        }
+                    });
+                    await sleep(150);
+                    break;
+                    
+                case SOLVER_EVENT.CANDIDATE:
+                    status.textContent = `Trying MG${event.mg + 1}_p${event.perm}`;
+                    status.style.color = '#fbbf24';
+                    renderCandidateStrip(event.mg);
+                    const candidateNodeId = getNodeId(event.mg, event.perm);
+                    d3.selectAll('.node-group').each(function(d) {
+                        if (d.id === candidateNodeId) {
+                            d3.select(this).classed('highlighted', true).classed('faded', false);
+                            d3.select(this).select('.node-circle').classed('node-trial', true).classed('node-alive-candidate', false);
+                        } else if (d.minigrid === event.mg && pruningState.alive.get(d.id) && extractionState.domains.get(event.mg).has(d.perm_id)) {
+                            d3.select(this).classed('highlighted', false).classed('faded', true);
+                            d3.select(this).select('.node-circle').classed('node-alive-candidate', true).classed('node-trial', false);
+                        }
+                    });
+                    await sleep(100);
+                    break;
+                    
+                case SOLVER_EVENT.PROPAGATE:
+                    status.textContent = event.changed.filter(c => c.newSize !== c.oldSize).length > 0
+                        ? `Propagated: ${event.changed.filter(c => c.newSize !== c.oldSize).map(c => `MG${c.mg + 1} ${c.oldSize}→${c.newSize}`).join(', ')}`
+                        : 'Propagated: no changes';
+                    status.style.color = '#9ca3af';
+                    await removeIncompatibleNodes(event.changed, getNodeId(event.mg, event.perm));
+                    break;
+                    
+                case SOLVER_EVENT.FORCED:
+                    status.textContent = `FORCED: MG${event.mg + 1}=p${event.perm} (singleton)`;
+                    status.style.color = '#10b981';
+                    const fcell = document.getElementById(`domain-mg${event.mg + 1}`);
+                    if (fcell) {
+                        fcell.classList.add('assigned');
+                        fcell.style.background = '#10b981';
+                        setTimeout(() => { fcell.style.background = null; }, 600);
+                    }
+                    const forcedNodeId = getNodeId(event.mg, event.perm);
+                    d3.selectAll('.node-group').each(function(d) {
+                        if (d.id === forcedNodeId) {
+                            d3.select(this).classed('highlighted', true).classed('faded', false);
+                            d3.select(this).select('.node-circle').classed('node-forced', true);
+                        }
+                    });
+                    if (event.changed.length > 0) {
+                        await removeIncompatibleNodes(event.changed, forcedNodeId);
+                    }
+                    renderCandidateStrip(event.mg);
+                    await sleep(250);
+                    break;
+                    
+                case SOLVER_EVENT.CONTRADICTION:
+                    status.textContent = `⚠ CONTRADICTION – MG${event.mg + 1}_p${event.perm} causes empty domain`;
+                    status.style.color = '#ef4444';
+                    for (let m = 0; m < 9; m++) {
+                        if (extractionState.assignments.get(m) === null && extractionState.domains.get(m).size === 0) {
+                            const cell = document.getElementById(`domain-mg${m + 1}`);
+                            if (cell) cell.classList.add('shaking');
+                        }
+                    }
+                    const causeId = getNodeId(event.mg, event.perm);
+                    d3.selectAll('.node-group').each(function(d) {
+                        if (d.id === causeId) {
+                            d3.select(this).select('.node-circle').classed('node-contradiction-cause', true);
+                        }
+                    });
+                    setTimeout(() => {
+                        d3.selectAll('.node-circle').classed('node-contradiction-cause', false);
+                    }, 1200);
+                    await sleep(500);
+                    break;
+                    
+                case SOLVER_EVENT.SOLUTION:
+                    extractionState.finished = true;
+                    const board = reconstructBoard();
+                    extractionState.solutions.push(Array.from(extractionState.assignments.values()));
+                    status.textContent = `✓ SOLUTION FOUND (${extractionState.solutions.length} of 106)`;
+                    status.style.color = '#10b981';
+
+                    // Phase 1: Pulse all non-assigned nodes briefly (they're about to vanish)
+                    d3.selectAll('.node-group').each(function(d) {
+                        if (extractionState.assignments.get(d.minigrid) !== d.perm_id) {
+                            d3.select(this).select('.node-circle')
+                                .classed('node-dying', true)
+                                .classed('node-trial', false)
+                                .classed('node-forced', false)
+                                .classed('node-alive-candidate', false);
+                        }
+                    });
+                    await sleep(400);
+
+                    // Phase 2: Fade them out via CSS opacity transition
+                    d3.selectAll('.node-group').each(function(d) {
+                        if (extractionState.assignments.get(d.minigrid) !== d.perm_id) {
+                            d3.select(this).classed('node-removing', true)
+                                .select('.node-circle').classed('node-dying', false);
+                        }
+                    });
+                    await sleep(500);
+
+                    // Phase 3: Hide them from DOM
+                    d3.selectAll('.node-group').each(function(d) {
+                        if (extractionState.assignments.get(d.minigrid) !== d.perm_id) {
+                            d3.select(this).style('display', 'none');
+                        }
+                    });
+
+                    // Phase 4: Reveal the 9 assigned nodes as gold (pulse in)
+                    d3.selectAll('.node-group').each(function(d) {
+                        if (extractionState.assignments.get(d.minigrid) === d.perm_id) {
+                            d3.select(this).style('display', null)
+                                .classed('highlighted', true)
+                                .classed('faded', false)
+                                .classed('node-removing', false)
+                                .classed('node-dying', false);
+                            d3.select(this).select('.node-circle')
+                                .attr('fill', '#fbbf24')
+                                .classed('node-trial', false)
+                                .classed('node-forced', false)
+                                .classed('node-alive-candidate', false);
+                        }
+                    });
+                    await sleep(500);
+
+                    // Phase 5: Hide ALL edges, restore only solution edges
+                    edgesGroup.selectAll('path').style('display', 'none');
+                    edgesGroup.selectAll('path').each(function(e) {
+                        const srcAssigned = extractionState.assignments.get(e.source.minigrid) === e.source.perm_id;
+                        const tgtAssigned = extractionState.assignments.get(e.target.minigrid) === e.target.perm_id;
+                        if (srcAssigned && tgtAssigned) {
+                            d3.select(this).style('display', null)
+                                .classed('dead-edge', false)
+                                .classed('causal-edge', false);
+                        }
+                    });
+
+                    // Phase 6: Render the solution board (big moment)
+                    renderSolutionBoard(board);
+
+                    renderDomainsGrid();
+                    renderSearchTree();
+                    break;
+            }
+        }
+
+        // ── ORCHESTRATOR (calls solver + player) ───────────────────────
+        async function advanceSolver({ visualize = true } = {}) {
+            if (extractionState.finished) return 'done';
+            
+            const event = solverNextEvent();
+            
+            // candidate step returns an array of events (propagate + forced + result)
+            if (Array.isArray(event)) {
+                for (const evt of event) {
+                    await animateSolverEvent(evt, { visualize });
+                }
+                const lastEvent = event[event.length - 1];
+                if (lastEvent.type === SOLVER_EVENT.CONTRADICTION) return 'contradiction';
+                if (lastEvent.type === SOLVER_EVENT.SOLUTION) return 'solution';
+                renderDomainsGrid();
+                renderSearchTree();
+                return 'propagated';
+            }
+            
+            await animateSolverEvent(event, { visualize });
+            
+            if (event.type === SOLVER_EVENT.CONTRADICTION) return 'contradiction';
+            if (event.type === SOLVER_EVENT.SOLUTION) return 'solution';
+            if (event.type === SOLVER_EVENT.DONE) return 'done';
+            
+            return event.type;
+        }
+
+        function selectForcedSingleton() {
+            for (let m = 0; m < 9; m++) {
+                if (extractionState.assignments.get(m) === null && extractionState.domains.get(m).size === 1) {
+                    return m;
+                }
+            }
+            return null;
+        }
+
+
+
+        function repackMinigrid(mgIds) {
+            const svgWidth = svg.node().clientWidth;
+            const centerX = svgWidth / 2;
+            
+            mgIds.forEach(mg => {
+                const domainPerMs = extractionState.domains.get(mg);
+                // Use original positions for layout ordering
+                const survivors = graphData.nodes.filter(n => 
+                    n.minigrid === mg && 
+                    pruningState.alive.get(n.id) &&
+                    domainPerMs.has(n.perm_id) &&
+                    d3.selectAll('.node-group').filter(d => d.id === n.id).style('display') !== 'none'
+                );
+                // Sort by original position to preserve order
+                survivors.sort((a, b) => (a.originalX || a.x) - (b.originalX || b.x));
+                
+                const y = config.topMargin + mg * config.levelSpacing;
+                const totalWidth = Math.max(0, (survivors.length - 1) * config.nodeSpacing);
+                const startX = survivors.length <= 1 ? centerX : centerX - totalWidth / 2;
+                
+                survivors.forEach((node, i) => {
+                    node.x = startX + i * config.nodeSpacing;
+                    node.y = y;
+                });
+            });
+            
+            // Animate survivors to new compacted positions
+            nodesGroup.selectAll('g')
+                .filter(d => {
+                    return mgIds.includes(d.minigrid) && 
+                           pruningState.alive.get(d.id) &&
+                           extractionState.domains.get(d.minigrid).has(d.perm_id) &&
+                           d3.selectAll('.node-group').filter(x => x.id === d.id).style('display') !== 'none';
+                })
+                .transition()
+                .duration(350)
+                .attr('transform', d => `translate(${d.x}, ${d.y})`);
+            
+            // Update edge paths
+            edgesGroup.selectAll('path')
+                .filter(function(e) { return !d3.select(this).classed('dead-edge') && !d3.select(this).classed('causal-edge'); })
+                .transition()
+                .duration(350)
+                .attr('d', d => getEdgePath(d));
+        }
+
+        function renderSearchTree() {
+            const tree = document.getElementById('search-tree');
+            if (!tree) return;
+            const history = extractionState.domainHistory;
+            if (history.length === 0) {
+                tree.textContent = '';
+                return;
+            }
+            
+            let lines = [];
+            for (let i = 0; i < history.length; i++) {
+                const state = history[i];
+                // Find the mg that was assigned at this decision level
+                let assignedMg = null, assignedPerm = null;
+                for (let m = 0; m < 9; m++) {
+                    if (state[m].assignment !== null && 
+                        (i === 0 || history[i-1].domain[m].size > state[m].domain.size)) {
+                        assignedMg = m;
+                        assignedPerm = state[m].assignment;
+                        break;
+                    }
+                }
+                if (assignedMg === null) {
+                    // Fallback: find the mg whose domain shrank the most
+                    for (let m = 0; m < 9; m++) {
+                        if (state[m].assignment !== null) {
+                            assignedMg = m;
+                            assignedPerm = state[m].assignment;
+                            break;
+                        }
+                    }
+                }
+                if (assignedMg === null) continue;
+                
+                // Build prefix: ├── for last child at each level, └── for final leaf
+                let prefix = '';
+                for (let j = 0; j < i; j++) {
+                    // Check if this is the last sibling at level j
+                    const isLastAtLevel = (j === i - 1); // simplified
+                    prefix += (j === i - 1) ? '  ' : '│ ';
+                }
+                // Check if this entry is forced
+                const isForced = state[assignedMg].domain.size === 1;
+                const label = isForced ? `MG${assignedMg + 1}=p${assignedPerm} (FORCED)` : `MG${assignedMg + 1}=p${assignedPerm}`;
+                lines.push(`${prefix}├─ ${label}`);
+            }
+            
+            // If finished, add solution marker
+            if (extractionState.finished && extractionState.solutions.length > 0) {
+                lines.push(`  └─ SOLUTION #${extractionState.solutions.length}`);
+            }
+            
+            tree.textContent = lines.join('\n');
+        }
+
+        function undoLastStep() {
+            if (extractionState.domainHistory.length === 0) return;
+            const prev = extractionState.domainHistory.pop();
+            for (let m = 0; m < 9; m++) {
+                extractionState.domains.set(m, prev[m].domain);
+                extractionState.assignments.set(m, prev[m].assignment);
+            }
+            extractionState.currentMg = null;
+            extractionState.currentCandidate = null;
+            extractionState.stepMode = null;
+            renderDomainsGrid();
+            renderCandidateStrip(null);
+            clearExtractionHighlights();
+            renderSearchTree();
+            document.getElementById('extraction-status').textContent = 'Undid last step';
+        }
+
+        function clearExtractionHighlights() {
+            d3.selectAll('.node-group').classed('faded', false).classed('highlighted', false);
+            nodesGroup.selectAll('.node-circle')
+                .classed('node-supported', false)
+                .classed('node-unsupported', false)
+                .classed('node-dying', false)
+                .classed('node-cascade-warn', false)
+                .attr('fill', d => colorScale(d.minigrid));
+            edgesGroup.selectAll('path').classed('highlighted', false).classed('faded', false);
+            document.getElementById('support-panel')?.remove();
+            document.querySelectorAll('.domain-cell').forEach(c => {
+                c.classList.remove('mrv-selected');
+            });
+            d3.selectAll('.causal-edge').remove();
+            d3.selectAll('.death-label').remove();
+            d3.selectAll('.node-group').each(function(d) {
+                d3.select(this).style('display', pruningState.alive.get(d.id) ? null : 'none');
+            }).classed('node-removing', false);
+            nodesGroup.selectAll('.node-circle').classed('node-forced', false).classed('node-trial', false).classed('node-alive-candidate', false).classed('node-contradiction-cause', false);
+            // Hide every edge that touches a dead node (Phase 5 pruned) or a hidden node
+            edgesGroup.selectAll('path').each(function(e) {
+                const srcAlive = pruningState.alive.get(e.source.id);
+                const tgtAlive = pruningState.alive.get(e.target.id);
+                const srcVisible = d3.selectAll('.node-group').filter(d => d.id === e.source.id).style('display') !== 'none';
+                const tgtVisible = d3.selectAll('.node-group').filter(d => d.id === e.target.id).style('display') !== 'none';
+                if (!srcAlive || !tgtAlive || !srcVisible || !tgtVisible) {
+                    d3.select(this).style('display', 'none');
+                } else {
+                    d3.select(this).style('display', null);
+                }
+            });
+        }
+
+        function reconstructBoard() {
+            const board = Array.from({length: 9}, () => Array(9).fill('.'));
+            for (const [mg, perm] of extractionState.assignments) {
+                if (perm === null) continue;
+                const nodeId = getNodeId(mg, perm);
+                const node = graphData.nodes.find(n => n.id === nodeId);
+                if (!node) continue;
+                const cells = node.cells;
+                const br = Math.floor(mg / 3) * 3;
+                const bc = (mg % 3) * 3;
+                for (let i = 0; i < 9; i++) {
+                    const lr = Math.floor(i / 3);
+                    const lc = i % 3;
+                    board[br + lr][bc + lc] = cells[i];
+                }
+            }
+            return board;
+        }
+
+        function renderSolutionBoard(board) {
+            const container = document.getElementById('solution-board-container');
+            container.innerHTML = '<div style="font-size:11px;color:#9ca3af;margin-bottom:4px">Solution Board</div>';
+            const table = document.createElement('table');
+            table.style.cssText = 'border-collapse:collapse;margin:0 auto';
+            for (let r = 0; r < 9; r++) {
+                const tr = document.createElement('tr');
+                for (let c = 0; c < 9; c++) {
+                    const td = document.createElement('td');
+                    td.className = 'solution-board-cell';
+                    td.textContent = board[r][c] === '.' ? '·' : board[r][c];
+                    if (GIVEN_CELLS.has(`${r},${c}`)) {
+                        td.classList.add('given');
+                    } else if (board[r][c] !== '.') {
+                        td.classList.add('solved');
+                    }
+                    // Thicker borders for 3x3 blocks
+                    const br = Math.floor(r / 3) * 3;
+                    const bc = Math.floor(c / 3) * 3;
+                    td.style.borderRight = (c % 3 === 2 && c < 8) ? '2px solid #60a5fa' : '1px solid #1e2642';
+                    td.style.borderBottom = (r % 3 === 2 && r < 8) ? '2px solid #60a5fa' : '1px solid #1e2642';
+                    tr.appendChild(td);
+                }
+                table.appendChild(tr);
+            }
+            container.appendChild(table);
         }
 
         // ── Pruning Data Structures ────────────────────────────────────────────────
@@ -1289,7 +2216,9 @@
             });
             
             // After 600ms: fade them + their edges + redistribute survivors
+            const token = pruningRunToken;
             setTimeout(() => {
+                if (token !== pruningRunToken) return;
                 d3.selectAll('.node-group').each(function(d) {
                     if (round.includes(d.id)) {
                         d3.select(this).classed('node-dead', true);
@@ -1365,6 +2294,8 @@
                 const survivors = graphData.nodes.filter(n => 
                     n.minigrid === mg && pruningState.alive.get(n.id)
                 );
+                // Sort by original position to preserve ordering
+                survivors.sort((a, b) => (a.originalX || a.x) - (b.originalX || b.x));
                 const y = config.topMargin + mg * config.levelSpacing;
                 const totalWidth = Math.max(0, (survivors.length - 1) * config.nodeSpacing);
                 const startX = survivors.length === 0 ? centerX : centerX - totalWidth / 2;
@@ -1470,9 +2401,14 @@
                     z-index: 999; pointer-events: none; transition: opacity 0.4s;
                 `;
                 container.appendChild(label);
+                const token = pruningRunToken;
                 setTimeout(() => {
+                    if (token !== pruningRunToken) return;
                     label.style.opacity = '0';
-                    setTimeout(() => label.remove(), 400);
+                    setTimeout(() => {
+                        if (token !== pruningRunToken) return;
+                        label.remove();
+                    }, 400);
                 }, 1200);
             }
         }
@@ -1546,6 +2482,138 @@
             }
         });
         document.getElementById('reset-pruning').addEventListener('click', resetPruning);
+
+        // ── Event Bindings for Extraction Controls ───────────────────────────────────────────────
+        document.getElementById('extract-init').addEventListener('click', initDomains);
+        document.getElementById('extract-reset').addEventListener('click', () => {
+            pruningRunToken++;
+            extractionState = {
+                domains: new Map(),
+                assignments: new Map(),
+                domainHistory: [],
+                solutions: [],
+                currentMg: null,
+                currentCandidate: null,
+                stepMode: null,
+                finished: false,
+            };
+            document.getElementById('domains-grid').innerHTML = '';
+            document.getElementById('extraction-status').textContent = '';
+            document.getElementById('search-tree').textContent = '';
+            document.getElementById('solution-board-container').innerHTML = '';
+            renderCandidateStrip(null);
+            // Restore Phase 5 visibility: dead hidden, alive visible
+            nodesGroup.selectAll('g').interrupt();
+            nodesGroup.selectAll('g').each(function(d) {
+                d3.select(this).style('display', pruningState.alive.get(d.id) ? null : 'none');
+            });
+            // Reset all visual classes
+            nodesGroup.selectAll('g').classed('faded', false).classed('highlighted', false).classed('node-removing', false);
+            nodesGroup.selectAll('.node-circle')
+                .classed('node-forced', false).classed('node-trial', false)
+                .classed('node-alive-candidate', false).classed('node-contradiction-cause', false)
+                .attr('fill', d => colorScale(d.minigrid));
+            // Compact alive survivors evenly within their minigrid rows
+            // (avoid the wide gaps left by removed dead nodes)
+            const svgWidth = svg.node().clientWidth;
+            const centerX = svgWidth / 2;
+            for (let mg = 0; mg < 9; mg++) {
+                const survivors = graphData.nodes.filter(n =>
+                    n.minigrid === mg && pruningState.alive.get(n.id)
+                );
+                // Sort by originalX to preserve perm-id ordering
+                survivors.sort((a, b) => (a.originalX || a.x) - (b.originalX || b.x));
+                const y = config.topMargin + mg * config.levelSpacing;
+                const totalWidth = Math.max(0, (survivors.length - 1) * config.nodeSpacing);
+                const startX = survivors.length <= 1 ? centerX : centerX - totalWidth / 2;
+                survivors.forEach((node, i) => {
+                    node.x = startX + i * config.nodeSpacing;
+                    node.y = y;
+                });
+            }
+            // Animate nodes to compacted positions
+            nodesGroup.selectAll('g')
+                .filter(d => pruningState.alive.get(d.id))
+                .transition().duration(300)
+                .attr('transform', d => `translate(${d.x}, ${d.y})`);
+            // Restore edge visibility using DOM display state of endpoints
+            edgesGroup.selectAll('path').style('display', null).classed('dead-edge', false).classed('causal-edge', false);
+            edgesGroup.selectAll('path').each(function(e) {
+                const srcDisplay = d3.selectAll('.node-group').filter(d => d.id === e.source.id).style('display');
+                const tgtDisplay = d3.selectAll('.node-group').filter(d => d.id === e.target.id).style('display');
+                if (srcDisplay === 'none' || tgtDisplay === 'none') {
+                    d3.select(this).style('display', 'none');
+                }
+            });
+            edgesGroup.selectAll('path')
+                .transition().duration(300)
+                .attr('d', d => getEdgePath(d));
+        });
+        // Phase 6 Step — one complete decision cycle (MRV → candidate → propagate → forced cascade)
+        document.getElementById('extract-step').addEventListener('click', async () => {
+            const status = document.getElementById('extraction-status');
+            if (extractionState.domains.size === 0) {
+                status.textContent = 'Initialize domains first';
+                return;
+            }
+            if (extractionState.finished) {
+                status.textContent = 'Search complete – Reset to try again';
+                return;
+            }
+            
+            const result = await advanceSolver({ visualize: true });
+            
+            if (result === 'contradiction') {
+                renderDomainsGrid();
+                renderSearchTree();
+            } else if (result === 'solution') {
+                // advanceSolver already rendered the solution
+            }
+        });
+        // Phase 6 Auto Solve — full search with no visual delays
+        document.getElementById('extract-auto').addEventListener('click', async () => {
+            const status = document.getElementById('extraction-status');
+            if (extractionState.domains.size === 0) {
+                status.textContent = 'Initialize domains first';
+                return;
+            }
+            
+            extractionState.solutions = [];
+            const token = ++pruningRunToken;
+            let steps = 0;
+            const MAX_STEPS = 50000;
+            
+            while (steps++ < MAX_STEPS && token === pruningRunToken) {
+                const result = await advanceSolver({ visualize: false });
+                if (result === 'done') break;
+                if (result === 'solution') break;
+                if (result === 'contradiction') {
+                    if (extractionState.domainHistory.length === 0) break;
+                    continue;
+                }
+            }
+            
+            if (extractionState.solutions.length > 0) {
+                const board = reconstructBoard();
+                renderSolutionBoard(board);
+                status.textContent = `✓ Found ${extractionState.solutions.length} solution(s)`;
+                status.style.color = '#10b981';
+                d3.selectAll('.node-group').each(function(d) {
+                    if (extractionState.assignments.get(d.minigrid) === d.perm_id) {
+                        d3.select(this).classed('highlighted', true).classed('faded', false);
+                        d3.select(this).select('.node-circle').attr('fill', '#fbbf24');
+                    } else {
+                        d3.select(this).classed('highlighted', false).classed('faded', true);
+                    }
+                });
+                renderDomainsGrid();
+                renderSearchTree();
+            } else {
+                status.textContent = 'No solution found';
+                status.style.color = '#ef4444';
+            }
+        });
+        document.getElementById('extract-undo').addEventListener('click', undoLastStep);
 
         document.getElementById('survivor-mode').addEventListener('change', (e) => {
             if (pruningState.rounds.length === 0) return;
