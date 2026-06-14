@@ -436,6 +436,62 @@
         ::-webkit-scrollbar-thumb:hover {
             background: #3b82f6;
         }
+
+        #pruning-section {
+            background: #1a1f38;
+            border-radius: 8px;
+            padding: 16px;
+            margin-top: 8px;
+        }
+        #pruning-info {
+            display: flex;
+            justify-content: space-between;
+            margin: 8px 0;
+            font-size: 13px;
+            color: #60a5fa;
+        }
+        .pruning-stat { font-weight: 600; }
+        #round-timeline {
+            display: flex;
+            gap: 2px;
+            margin: 8px 0;
+            height: 20px;
+        }
+        .round-bar {
+            flex: 1;
+            background: #2d3448;
+            border-radius: 2px;
+            position: relative;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .round-bar.completed { background: #ef4444; }
+        .round-bar.active { box-shadow: 0 0 8px #fbbf24; }
+        .node-dead {
+            opacity: 0.06 !important;
+            pointer-events: none !important;
+            transition: opacity 0.8s ease;
+        }
+        .dead-edge {
+            stroke-opacity: 0 !important;
+            transition: stroke-opacity 0.8s ease;
+        }
+        .node-cascade-warn {
+            stroke: #f97316 !important;
+            stroke-width: 4 !important;
+            filter: drop-shadow(0 0 10px rgba(249, 115, 22, 0.6));
+            transition: all 0.5s ease;
+        }
+        .node-dying {
+            stroke: #ef4444 !important;
+            stroke-width: 5 !important;
+            filter: drop-shadow(0 0 18px rgba(239, 68, 68, 0.9));
+            transition: all 0.4s ease;
+        }
+        .node-supported { stroke: #10b981 !important; stroke-width: 3 !important; transition: stroke 0.4s; }
+        .node-unsupported { stroke: #ef4444 !important; stroke-width: 1 !important; opacity: 0.4 !important; transition: all 0.4s; }
+        @keyframes flashUnsupported { 0%,100% { filter: none; } 50% { filter: drop-shadow(0 0 12px #ef4444); } }
+        .mg-flash-unsupported { animation: flashUnsupported 0.6s ease-in-out 2; }
     </style>
 </head>
 <body>
@@ -512,6 +568,41 @@
                     <h3>Minigrids</h3>
                     <div id="legend-content"></div>
                 </div>
+
+                <div id="pruning-section">
+                    <h3 style="font-size:13px;font-weight:600;color:#e8e8e8;margin-bottom:12px;text-transform:uppercase;letter-spacing:1px">Phase 5: Local Support Pruning</h3>
+                    <div id="pruning-info">
+                        <span class="pruning-stat">Round: <span id="round-num">0</span></span>
+                        <span class="pruning-stat">Alive: <span id="alive-count">—</span></span>
+                    </div>
+                    <div id="round-timeline"></div>
+                    <button id="run-pruning">▶ Run All Rounds</button>
+                    <button id="step-round">⏭ Step Round</button>
+                    <button id="reset-pruning">↺ Reset</button>
+                    <div class="checkbox-group" style="margin-top:12px">
+                        <input type="checkbox" id="survivor-mode">
+                        <label for="survivor-mode" class="control-label" style="margin:0">Show Survivors Only</label>
+                    </div>
+                    <div class="checkbox-group" style="margin-top:12px">
+                        <input type="checkbox" id="heatmap-mode">
+                        <label for="heatmap-mode" class="control-label" style="margin:0">Heatmap by Death Round</label>
+                    </div>
+                    <div class="control-group" style="margin-top:12px">
+                        <label class="control-label">Focus Minigrid</label>
+                        <select id="focus-mg" style="width:100%;background:#2d3448;color:#e8e8e8;border:1px solid #3b82f6;padding:6px;border-radius:4px;font-size:12px">
+                            <option value="-1">Show All</option>
+                            <option value="0">MG0 (top-left)</option>
+                            <option value="1">MG1 (top-center)</option>
+                            <option value="2">MG2 (top-right)</option>
+                            <option value="3">MG3 (center-left)</option>
+                            <option value="4">MG4 (center)</option>
+                            <option value="5">MG5 (center-right)</option>
+                            <option value="6">MG6 (bottom-left)</option>
+                            <option value="7">MG7 (bottom-center)</option>
+                            <option value="8">MG8 (bottom-right)</option>
+                        </select>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -548,6 +639,18 @@
         let graphData = null;
         let selectedNode = null;
         let transform = d3.zoomIdentity;
+        let pruningRunToken = 0;
+        const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+        let pruningState = {
+            alive: new Map(),
+            supports: new Map(),
+            deathRound: new Map(),
+            compatible: new Map(),
+            relations: null,
+            rounds: [],
+            currentRound: 0,
+            running: false,
+        };
 
         // Zoom behavior
         const zoom = d3.zoom()
@@ -568,6 +671,7 @@
                     try {
                         graphData = JSON.parse(e.target.result);
                         visualizeGraph(graphData);
+                        precomputePruningData();
                     } catch (error) {
                         console.error('Error parsing JSON:', error);
                         alert('Invalid JSON file');
@@ -799,6 +903,17 @@
 
             selectedNode = d;
 
+            // Clear previous highlighting state
+            nodesGroup.selectAll('.node-group').each(function(n) {
+                d3.select(this).classed('faded', false);
+                d3.select(this).select('.node-circle')
+                    .classed('node-supported', false)
+                    .classed('node-unsupported', false)
+                    .classed('mg-flash-unsupported', false);
+            });
+            edgesGroup.selectAll('path').classed('faded', false).classed('highlighted', false);
+            document.getElementById('support-panel')?.remove();
+
             // Get connected node IDs
             const connectedIds = new Set();
             edgesGroup.selectAll('path').each(function(edge) {
@@ -806,14 +921,91 @@
                 if (edge.target.id === d.id) connectedIds.add(edge.source.id);
             });
 
-            // Highlight
+            // Highlight the clicked node
             nodesGroup.selectAll('.node-group')
-                .classed('highlighted', n => n.id === d.id)
-                .classed('faded', n => n.id !== d.id && !connectedIds.has(n.id));
+                .classed('highlighted', n => n.id === d.id);
 
             edgesGroup.selectAll('path')
                 .classed('highlighted', e => e.source.id === d.id || e.target.id === d.id)
                 .classed('faded', e => e.source.id !== d.id && e.target.id !== d.id);
+
+            // Build unified support panel
+            const supports = pruningState.supports.get(d.id);
+            const relations = pruningState.relations;
+            const deathRound = pruningState.deathRound.get(d.id);
+            const isDead = pruningState.rounds.length > 0 && !pruningState.alive.get(d.id);
+
+            const panel = document.createElement('div');
+            panel.id = 'support-panel';
+            panel.style.cssText = `
+                position: absolute; bottom: 20px; right: 20px;
+                background: rgba(15, 23, 42, 0.97); color: #e8e8e8;
+                padding: 16px; border-radius: 8px; font-size: 12px;
+                z-index: 1001; border: 1px solid #3b82f6;
+                box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+                max-width: 320px; min-width: 240px;
+            `;
+
+            let html = `<div style="font-weight:600;color:#60a5fa;margin-bottom:10px">${d.id}</div>`;
+            html += '<div style="margin-bottom:8px;color:#9ca3af">Required supports:</div>';
+
+            if (relations) {
+                for (let otherMg = 0; otherMg < 9; otherMg++) {
+                    if (relations[d.minigrid][otherMg] === 'Not') continue;
+                    const count = (supports && supports[otherMg]) || 0;
+                    const icon = count > 0 ? '✓' : '✗';
+                    const color = count > 0 ? '#10b981' : '#ef4444';
+                    html += `<div style="margin:4px 0;display:flex;justify-content:space-between">
+                        <span>MG${otherMg}</span>
+                        <span style="color:${color}">${icon} ${count} alive</span>
+                    </div>`;
+                }
+            }
+
+            // Death info line
+            if (isDead && deathRound) {
+                let zeroMg = -1;
+                if (relations && supports) {
+                    for (let otherMg = 0; otherMg < 9; otherMg++) {
+                        if (relations[d.minigrid][otherMg] === 'Not') continue;
+                        if (supports[otherMg] === 0) { zeroMg = otherMg; break; }
+                    }
+                }
+                html += `<div style="margin-top:10px;padding-top:10px;border-top:1px solid #1e2642;color:#ef4444">
+                    Died in Round ${deathRound} — MG${zeroMg} had 0 alive partners
+                </div>`;
+
+                // Flash the unsupported minigrid
+                if (zeroMg >= 0) {
+                    nodesGroup.selectAll('.node-group').each(function(n) {
+                        if (n.minigrid === zeroMg) {
+                            d3.select(this).select('.node-circle').classed('mg-flash-unsupported', true);
+                        }
+                    });
+                }
+            }
+
+            panel.innerHTML = html;
+            document.getElementById('graph-container').appendChild(panel);
+
+            // Color related nodes: green glow for alive, red glow for dead
+            if (relations) {
+                nodesGroup.selectAll('.node-group').each(function(n) {
+                    if (n.id === d.id) return;
+                    if (relations[d.minigrid][n.minigrid] !== 'Not') {
+                        const nAlive = pruningState.alive.get(n.id);
+                        d3.select(this).select('.node-circle')
+                            .classed('node-supported', nAlive)
+                            .classed('node-unsupported', !nAlive);
+                    } else {
+                        d3.select(this).classed('faded', true);
+                    }
+                });
+            } else {
+                // No pruning data — fall back to basic connected highlight
+                nodesGroup.selectAll('.node-group')
+                    .classed('faded', n => n.id !== d.id && !connectedIds.has(n.id));
+            }
         }
 
         function clearHighlight() {
@@ -821,12 +1013,21 @@
             nodesGroup.selectAll('.node-group')
                 .classed('highlighted', false)
                 .classed('faded', false);
+            nodesGroup.selectAll('.node-circle')
+                .classed('node-supported', false)
+                .classed('node-unsupported', false)
+                .classed('mg-flash-unsupported', false);
             edgesGroup.selectAll('path')
                 .classed('highlighted', false)
                 .classed('faded', false);
+            document.getElementById('support-panel')?.remove();
         }
 
         function handleMouseEnter(event, d) {
+            // Dead nodes are offscreen or pointer-events:none — shouldn't fire.
+            // Guard anyway.
+            if (pruningState.rounds.length > 0 && !pruningState.alive.get(d.id)) return;
+
             const tooltip = document.getElementById('tooltip');
             const K = Math.sqrt(d.cells.length);
 
@@ -839,6 +1040,23 @@
             const connections = edgesGroup.selectAll('path')
                 .filter(e => e.source.id === d.id || e.target.id === d.id)
                 .size();
+
+            let supportHtml = '';
+            if (pruningState.rounds.length > 0) {
+                const supports = pruningState.supports.get(d.id);
+                const relations = pruningState.relations;
+                if (supports && relations) {
+                    supportHtml = '<div class="tooltip-section"><div class="tooltip-stat" style="margin-bottom:4px"><span style="color:#9ca3af;font-size:10px;text-transform:uppercase">Live supports</span></div>';
+                    for (let otherMg = 0; otherMg < 9; otherMg++) {
+                        if (relations[d.minigrid][otherMg] === 'Not') continue;
+                        const count = supports[otherMg];
+                        const icon = count > 0 ? '✓' : '✗';
+                        const color = count > 0 ? '#10b981' : '#ef4444';
+                        supportHtml += `<div class="tooltip-stat"><span class="tooltip-stat-label">MG${otherMg}</span><span class="tooltip-stat-value" style="color:${color}">${icon} ${count}</span></div>`;
+                    }
+                    supportHtml += '</div>';
+                }
+            }
 
             tooltip.innerHTML = `
                 <div class="tooltip-header">Minigrid ${d.minigrid} – Permutation ${d.perm_id}</div>
@@ -856,6 +1074,7 @@
                         <span class="tooltip-stat-value">${connections}</span>
                     </div>
                 </div>
+                ${supportHtml}
                 <div class="tooltip-section">
                     ${cellsHtml}
                 </div>
@@ -944,6 +1163,468 @@
                 .duration(750)
                 .call(zoom.transform, d3.zoomIdentity.translate(translateX, translateY).scale(scale));
         }
+
+        // ── Pruning Data Structures ────────────────────────────────────────────────
+
+        function precomputePruningData() {
+            // 1. Build node lookup: id → node
+            const nodeById = {};
+            graphData.nodes.forEach(n => { nodeById[n.id] = n; });
+
+            // 2. Build compatible: "mgX_pY" → { otherMg: Set(perm_ids) }
+            const compat = new Map();
+            graphData.nodes.forEach(n => { compat.set(n.id, {}); });
+            graphData.edges.forEach(e => {
+                const src = nodeById[e.source], dst = nodeById[e.target];
+                if (!src || !dst) return;
+                if (!compat.get(src.id)[dst.minigrid]) compat.get(src.id)[dst.minigrid] = new Set();
+                if (!compat.get(dst.id)[src.minigrid]) compat.get(dst.id)[src.minigrid] = new Set();
+                compat.get(src.id)[dst.minigrid].add(dst.perm_id);
+                compat.get(dst.id)[src.minigrid].add(src.perm_id);
+            });
+
+            // 3. Build relations matrix
+            const relations = Array.from({length: 9}, () => Array(9).fill('Not'));
+            for (let a = 0; a < 9; a++) {
+                for (let b = 0; b < 9; b++) {
+                    if (a === b) continue;
+                    if (Math.floor(a / 3) === Math.floor(b / 3)) relations[a][b] = 'Row';
+                    else if (a % 3 === b % 3) relations[a][b] = 'Col';
+                }
+            }
+
+            // 4. Initialize alive and supports
+            const alive = new Map();
+            const supports = new Map();
+            graphData.nodes.forEach(n => {
+                alive.set(n.id, true);
+                const nodeSupports = {};
+                for (let otherMg = 0; otherMg < 9; otherMg++) {
+                    if (relations[n.minigrid][otherMg] === 'Not') continue;
+                    const compatPerms = compat.get(n.id)[otherMg] || new Set();
+                    nodeSupports[otherMg] = compatPerms.size;
+                }
+                supports.set(n.id, nodeSupports);
+            });
+
+            pruningState = {
+                alive, supports, compatible: compat, relations,
+                deathRound: new Map(),
+                rounds: [], currentRound: 0, running: false,
+            };
+            document.getElementById('alive-count').textContent = graphData.nodes.length;
+        }
+
+        function computePruningRounds() {
+            const { alive, compatible, relations } = pruningState;
+            const rounds = [];
+            
+            while (true) {
+                const removals = [];
+                for (const [nodeId, isAlive] of alive) {
+                    if (!isAlive) continue;
+                    const node = graphData.nodes.find(n => n.id === nodeId);
+                    const mg = node.minigrid;
+                    const compats = compatible.get(nodeId);
+                    
+                    let unsupported = false;
+                    for (let otherMg = 0; otherMg < 9; otherMg++) {
+                        if (relations[mg][otherMg] === 'Not') continue;
+                        const compatPerms = compats[otherMg] || new Set();
+                        let hasLive = false;
+                        for (const cp of compatPerms) {
+                            const cpId = `mg${otherMg}_p${cp}`;
+                            if (alive.get(cpId)) { hasLive = true; break; }
+                        }
+                        if (!hasLive) { unsupported = true; break; }
+                    }
+                    if (unsupported) removals.push(nodeId);
+                }
+                if (removals.length === 0) break;
+                removals.forEach(id => alive.set(id, false));
+                rounds.push(removals);
+            }
+            
+            // Reset alive (rounds are precomputed for playback)
+            graphData.nodes.forEach(n => alive.set(n.id, true));
+            pruningState.rounds = rounds;
+            pruningState.currentRound = 0;
+            
+            // Build timeline bars
+            renderTimeline();
+            
+            return rounds;
+        }
+
+        function renderTimeline() {
+            const container = document.getElementById('round-timeline');
+            container.innerHTML = '';
+            const maxRemovals = Math.max(...pruningState.rounds.map(r => r.length), 1);
+            pruningState.rounds.forEach((round, i) => {
+                const bar = document.createElement('div');
+                bar.className = 'round-bar';
+                bar.style.flex = round.length;
+                bar.title = `Round ${i+1}: ${round.length} removals`;
+                bar.dataset.round = i;
+                bar.addEventListener('click', () => playRound(i));
+                container.appendChild(bar);
+            });
+        }
+
+        function playRound(roundIdx) {
+            if (roundIdx < 0 || roundIdx >= pruningState.rounds.length) return;
+            const round = pruningState.rounds[roundIdx];
+            
+            // Update timeline
+            document.querySelectorAll('.round-bar').forEach((bar, i) => {
+                bar.classList.toggle('completed', i <= roundIdx);
+                bar.classList.toggle('active', i === roundIdx);
+            });
+            
+            // Phase 1: Pulse dying nodes red (batch)
+            d3.selectAll('.node-group').each(function(d) {
+                if (round.includes(d.id)) {
+                    d3.select(this).select('.node-circle').classed('node-dying', true);
+                }
+            });
+            
+            // After 600ms: fade them + their edges + redistribute survivors
+            setTimeout(() => {
+                d3.selectAll('.node-group').each(function(d) {
+                    if (round.includes(d.id)) {
+                        d3.select(this).classed('node-dead', true);
+                        d3.select(this).select('.node-circle').classed('node-dying', false);
+                    }
+                });
+                
+                // Fade edges touching dead nodes
+                const deadSet = new Set(round);
+                edgesGroup.selectAll('path').each(function(e) {
+                    if (deadSet.has(e.source.id) || deadSet.has(e.target.id)) {
+                        d3.select(this).classed('dead-edge', true);
+                    }
+                });
+                
+                // Mark as dead in state
+                round.forEach(id => {
+                    pruningState.alive.set(id, false);
+                    pruningState.deathRound.set(id, roundIdx + 1);
+                });
+                
+                // Recompute supports for surviving nodes
+                updateSupports();
+                
+                pruningState.currentRound = roundIdx + 1;
+                updatePruningInfo();
+                
+                // Redistribute survivors to close gaps
+                relayoutSurvivors();
+                
+                // Show cascade causality if there's a next round
+                if (roundIdx + 1 < pruningState.rounds.length) {
+                    showCascadeCause(round, pruningState.rounds[roundIdx + 1]);
+                }
+            }, 600);
+        }
+
+        function updateSupports() {
+            pruningState.supports.forEach((supps, nodeId) => {
+                const node = graphData.nodes.find(n => n.id === nodeId);
+                if (!pruningState.alive.get(nodeId)) return;
+                for (const otherMg in supps) {
+                    const compatPerms = pruningState.compatible.get(nodeId)[otherMg] || new Set();
+                    let count = 0;
+                    for (const cp of compatPerms) {
+                        if (pruningState.alive.get(`mg${otherMg}_p${cp}`)) count++;
+                    }
+                    supps[otherMg] = count;
+                }
+            });
+        }
+
+        function updatePruningInfo() {
+            const aliveCount = Array.from(pruningState.alive.values()).filter(v => v).length;
+            document.getElementById('round-num').textContent = pruningState.currentRound;
+            document.getElementById('alive-count').textContent = aliveCount;
+        }
+
+        function relayoutSurvivors() {
+            // Kill all active D3 transitions to prevent transform races.
+            // Without this, overlapping round animations leave dead nodes
+            // at old positions with only opacity:0.06 — visible ghost nodes.
+            nodesGroup.selectAll('g').interrupt();
+            edgesGroup.selectAll('path').interrupt();
+
+            // Redistribute surviving nodes in each minigrid to close gaps
+            const minigrids = [0,1,2,3,4,5,6,7,8];
+            const svgWidth = svg.node().clientWidth;
+            const centerX = svgWidth / 2;
+            const labelData = [];
+            
+            minigrids.forEach(mg => {
+                const survivors = graphData.nodes.filter(n => 
+                    n.minigrid === mg && pruningState.alive.get(n.id)
+                );
+                const y = config.topMargin + mg * config.levelSpacing;
+                const totalWidth = Math.max(0, (survivors.length - 1) * config.nodeSpacing);
+                const startX = survivors.length === 0 ? centerX : centerX - totalWidth / 2;
+                
+                survivors.forEach((node, i) => {
+                    node.x = startX + i * config.nodeSpacing;
+                    node.y = y;
+                });
+                labelData.push({ mg, x: startX - 60, y: y + 4 });
+            });
+            
+            // Animate survivors to new positions
+            nodesGroup.selectAll('g')
+                .filter(d => pruningState.alive.get(d.id))
+                .transition()
+                .duration(400)
+                .attr('transform', d => `translate(${d.x}, ${d.y})`);
+            
+            // Dead nodes: display:none wins regardless of transition state
+            nodesGroup.selectAll('g')
+                .filter(d => !pruningState.alive.get(d.id))
+                .style('display', 'none');
+            
+            // Update alive edge paths to match survivors' new positions
+            edgesGroup.selectAll('path')
+                .filter(function(e) { return !d3.select(this).classed('dead-edge'); })
+                .transition()
+                .duration(400)
+                .attr('d', d => getEdgePath(d));
+        }
+
+        function showCascadeCause(deadRound, nextRound) {
+            // For each node in nextRound, find which minigrid(s) lost support
+            const deadSet = new Set(deadRound);
+            
+            nextRound.forEach(victimId => {
+                const victim = graphData.nodes.find(n => n.id === victimId);
+                if (!victim) return;
+                
+                const supports = pruningState.supports.get(victimId);
+                const relations = pruningState.relations;
+                if (!supports || !relations) return;
+                
+                // Find minigrids where support dropped to 0
+                const unsupportedMgs = [];
+                for (let otherMg = 0; otherMg < 9; otherMg++) {
+                    if (relations[victim.minigrid][otherMg] === 'Not') continue;
+                    if (supports[otherMg] === 0) {
+                        unsupportedMgs.push(otherMg);
+                    }
+                }
+                
+                if (unsupportedMgs.length === 0) return;
+                
+                // Find the dead nodes this victim relied on for MG support
+                const deadSupporters = [];
+                unsupportedMgs.forEach(otherMg => {
+                    const compatPerms = pruningState.compatible.get(victimId)[otherMg] || new Set();
+                    for (const cp of compatPerms) {
+                        const sid = `mg${otherMg}_p${cp}`;
+                        if (deadSet.has(sid)) {
+                            deadSupporters.push({ id: sid, mg: otherMg });
+                        }
+                    }
+                });
+                
+                // Highlight the victim node with cascade pulse
+                const victimEl = d3.selectAll('.node-group').filter(d => d.id === victimId);
+                victimEl.select('.node-circle').classed('node-cascade-warn', true);
+                
+                // Draw support-removed lines from victim to dead supporters
+                deadSupporters.forEach(supp => {
+                    const supporter = graphData.nodes.find(n => n.id === supp.id);
+                    if (!supporter) return;
+                    const line = edgesGroup.append('path')
+                        .attr('class', 'cascade-support-line')
+                        .attr('d', getEdgePath({ source: victim, target: supporter }))
+                        .attr('stroke', '#f97316')
+                        .attr('stroke-width', 2)
+                        .attr('stroke-opacity', 0.5)
+                        .attr('stroke-dasharray', '6,4')
+                        .attr('fill', 'none');
+                    
+                    // Pulse and remove
+                    line.transition().duration(300).attr('stroke-opacity', 0.8)
+                        .transition().duration(400).attr('stroke-opacity', 0.1)
+                        .transition().duration(300).attr('stroke-opacity', 0.6)
+                        .transition().duration(500).attr('stroke-opacity', 0)
+                        .remove();
+                });
+            });
+            
+            // Add a floating label explaining the cascade
+            if (nextRound.length > 0) {
+                const container = document.getElementById('graph-container');
+                const label = document.createElement('div');
+                label.className = 'cascade-label';
+                label.textContent = `${nextRound.length} nodes lost support from Round ${pruningState.currentRound}`;
+                label.style.cssText = `
+                    position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
+                    background: rgba(249, 115, 22, 0.9); color: #fff;
+                    padding: 6px 16px; border-radius: 6px; font-size: 13px; font-weight: 600;
+                    z-index: 999; pointer-events: none; transition: opacity 0.4s;
+                `;
+                container.appendChild(label);
+                setTimeout(() => {
+                    label.style.opacity = '0';
+                    setTimeout(() => label.remove(), 400);
+                }, 1200);
+            }
+        }
+
+        function clearPruningVisualState() {
+            clearHighlight();
+            d3.selectAll('.cascade-label').remove();
+            d3.selectAll('.cascade-support-line').remove();
+            nodesGroup.selectAll('g')
+                .interrupt()
+                .style('display', null)
+                .style('opacity', null)
+                .style('pointer-events', null)
+                .classed('node-dead', false)
+                .classed('faded', false)
+                .classed('highlighted', false);
+            nodesGroup.selectAll('.node-circle')
+                .interrupt()
+                .classed('node-supported', false)
+                .classed('node-unsupported', false)
+                .classed('node-dying', false)
+                .classed('node-cascade-warn', false)
+                .classed('mg-flash-unsupported', false)
+                .attr('fill', d => colorScale(d.minigrid));
+            edgesGroup.selectAll('path')
+                .interrupt()
+                .style('opacity', null)
+                .classed('dead-edge', false)
+                .classed('highlighted', false)
+                .classed('faded', false);
+        }
+
+        function resetPruning() {
+            pruningRunToken++;
+            graphData.nodes.forEach(n => pruningState.alive.set(n.id, true));
+            pruningState.currentRound = 0;
+            pruningState.rounds = [];
+            pruningState.deathRound.clear();
+            document.querySelectorAll('.round-bar').forEach(b => {
+                b.classList.remove('completed', 'active');
+            });
+            document.getElementById('round-timeline').innerHTML = '';
+            document.getElementById('round-num').textContent = '0';
+            document.getElementById('alive-count').textContent = graphData.nodes.length;
+            clearPruningVisualState();
+            precomputePruningData();
+            updateLayout();
+        }
+
+        async function runAllPruning() {
+            resetPruning();
+            computePruningRounds();
+            const token = pruningRunToken;
+            await sleep(400);
+            for (let i = 0; i < pruningState.rounds.length; i++) {
+                if (token !== pruningRunToken) return;
+                playRound(i);
+                await sleep(2500);
+            }
+        }
+
+
+
+        // ── Event Bindings for Pruning Controls ────────────────────────────────────
+
+        document.getElementById('run-pruning').addEventListener('click', runAllPruning);
+        document.getElementById('step-round').addEventListener('click', () => {
+            if (pruningState.rounds.length === 0) computePruningRounds();
+            if (pruningState.currentRound < pruningState.rounds.length) {
+                playRound(pruningState.currentRound);
+            }
+        });
+        document.getElementById('reset-pruning').addEventListener('click', resetPruning);
+
+        document.getElementById('survivor-mode').addEventListener('change', (e) => {
+            if (pruningState.rounds.length === 0) return;
+            if (e.target.checked) {
+                d3.selectAll('.node-group').each(function(d) {
+                    if (!pruningState.alive.get(d.id)) {
+                        d3.select(this).style('opacity', '0.03');
+                        d3.select(this).style('pointer-events', 'none');
+                    }
+                });
+            } else {
+                d3.selectAll('.node-group').each(function(d) {
+                    if (!pruningState.alive.get(d.id)) {
+                        d3.select(this).style('opacity', null);
+                        d3.select(this).style('pointer-events', null);
+                    }
+                });
+            }
+        });
+
+        document.getElementById('heatmap-mode').addEventListener('change', (e) => {
+            if (pruningState.rounds.length === 0) return;
+            if (e.target.checked) {
+                d3.selectAll('.node-group').each(function(d) {
+                    const round = pruningState.deathRound.get(d.id);
+                    if (round && !pruningState.alive.get(d.id)) {
+                        const color = ['#ef4444','#f97316','#eab308'][round-1] || '#ef4444';
+                        d3.select(this).select('.node-circle').attr('fill', color);
+                    }
+                });
+            } else {
+                d3.selectAll('.node-group').each(function(d) {
+                    d3.select(this).select('.node-circle').attr('fill', colorScale(d.minigrid));
+                });
+            }
+        });
+
+        document.getElementById('focus-mg').addEventListener('change', (e) => {
+            const focusMg = parseInt(e.target.value);
+            const relations = pruningState.relations;
+            
+            d3.selectAll('.node-group').each(function(d) {
+                if (focusMg === -1) {
+                    d3.select(this).style('opacity', null).style('pointer-events', null);
+                    return;
+                }
+                if (d.minigrid === focusMg) {
+                    d3.select(this).style('opacity', '1').style('pointer-events', null);
+                } else if (relations && relations[focusMg] && relations[focusMg][d.minigrid] !== 'Not') {
+                    d3.select(this).style('opacity', '0.6').style('pointer-events', null);
+                } else {
+                    d3.select(this).style('opacity', '0.05').style('pointer-events', 'none');
+                }
+            });
+            
+            // Also dim edges
+            if (focusMg === -1) {
+                edgesGroup.selectAll('path').style('opacity', null);
+            } else {
+                edgesGroup.selectAll('path').style('opacity', function(e) {
+                    if (e.source.minigrid === focusMg || e.target.minigrid === focusMg) return '0.3';
+                    if (relations && relations[focusMg] && 
+                        (relations[focusMg][e.source.minigrid] !== 'Not' || relations[focusMg][e.target.minigrid] !== 'Not')) return '0.08';
+                    return '0.01';
+                });
+            }
+        });
+
+        // Auto-load graph.json on page load
+        window.addEventListener('DOMContentLoaded', () => {
+            fetch('../../results/graph.json')
+                .then(res => res.json())
+                .then(data => {
+                    graphData = data;
+                    visualizeGraph(data);
+                    precomputePruningData();
+                })
+                .catch(err => console.warn('Auto-load failed, use file picker:', err));
+        });
 
         // Clear highlight on background click
         svg.on('click', clearHighlight);

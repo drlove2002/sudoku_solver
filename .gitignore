@@ -142,3 +142,9 @@ data/sudoku-3m.csv
 docs/*.aux
 docs/*.log
 docs/*.out
+
+# Manim / Python artifacts
+animation/media/*
+animation/__pycache__/
+animation/scenes/__pycache__/
+animation/components/__pycache__/
